@@ -12,6 +12,7 @@ export default {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       tsconfig: {
         jsx: 'react-jsx',
+        esModuleInterop: true,
       },
     }],
   },

@@ -1,6 +1,17 @@
-import Database from 'better-sqlite3';
-import { promises as fs } from 'fs';
-import path from 'path';
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
+// Only import Node.js modules if we're not in a browser
+let Database: any;
+let fs: any;
+let path: any;
+
+if (!isBrowser) {
+  Database = require('better-sqlite3');
+  fs = require('fs').promises;
+  path = require('path');
+}
+
 import type { ContentItem } from '../services/contentService';
 import type { ContentMetadata } from '../types';
 
@@ -67,30 +78,45 @@ export interface SearchResult {
 }
 
 export class DatabaseService {
-  private db: Database.Database;
+  private db: any;
   private config: DatabaseConfig;
+  private inMemoryData: Map<string, any> = new Map();
 
   constructor(config: DatabaseConfig) {
     this.config = config;
-    this.db = new Database(config.dbPath, {
-      verbose: config.verbose ? console.log : undefined
-    });
     
-    // Enable foreign keys
-    this.db.pragma('foreign_keys = ON');
-    
-    // Enable WAL mode for better concurrency
-    this.db.pragma('journal_mode = WAL');
-    
-    // Set busy timeout
-    this.db.pragma('busy_timeout = 5000');
+    if (isBrowser) {
+      // In browser, use in-memory storage
+      console.log('Using in-memory storage for browser environment');
+      this.inMemoryData = new Map();
+    } else {
+      // In Node.js, use SQLite
+      this.db = new Database(config.dbPath, {
+        verbose: config.verbose ? console.log : undefined
+      });
+      
+      // Enable foreign keys
+      this.db.pragma('foreign_keys = ON');
+      
+      // Enable WAL mode for better concurrency
+      this.db.pragma('journal_mode = WAL');
+      
+      // Set busy timeout
+      this.db.pragma('busy_timeout = 5000');
+    }
   }
 
-  /**
+    /**
    * Initialize database with schema
    */
   public async initialize(): Promise<void> {
     try {
+      if (isBrowser) {
+        // In browser, just initialize in-memory storage
+        console.log('Initialized in-memory storage for browser environment');
+        return;
+      }
+
       const schemaPath = path.join(__dirname, 'schema.sql');
       const schema = await fs.readFile(schemaPath, 'utf8');
       
@@ -99,14 +125,14 @@ export class DatabaseService {
         .split(';')
         .map(stmt => stmt.trim())
         .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
-
+      
       // Execute each statement
       for (const statement of statements) {
         if (statement.length > 0) {
           this.db.exec(statement);
         }
       }
-
+      
       console.log('Database initialized successfully');
     } catch (error) {
       console.error('Failed to initialize database:', error);
@@ -118,6 +144,33 @@ export class DatabaseService {
    * Insert or update content
    */
   public insertContent(content: ContentItem, savedAt: number = Date.now()): void {
+    if (isBrowser) {
+      // In browser, store in memory
+      const contentRecord: ContentRecord = {
+        id: content.id,
+        type: content.type,
+        title: content.title,
+        subreddit: content.subreddit,
+        author: content.author,
+        url: content.url,
+        permalink: content.permalink,
+        created_utc: content.created_utc,
+        score: content.metadata?.score || 0,
+        num_comments: content.metadata?.num_comments || 0,
+        upvote_ratio: content.metadata?.upvote_ratio || 0,
+        selftext: content.selftext || undefined,
+        body: content.body || undefined,
+        domain: content.url.split('/')[2], // Extract domain from URL
+        is_video: content.media?.type === 'video',
+        saved_at: savedAt,
+        created_at: Date.now(),
+        updated_at: Date.now()
+      };
+      
+      this.inMemoryData.set(`content:${content.id}`, contentRecord);
+      return;
+    }
+
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO content (
         id, type, title, subreddit, author, url, permalink, created_utc,
@@ -203,6 +256,43 @@ export class DatabaseService {
     limit: number = 50,
     offset: number = 0
   ): SearchResult[] {
+    if (isBrowser) {
+      // In browser, search in-memory data
+      const results: SearchResult[] = [];
+      const contentEntries = Array.from(this.inMemoryData.entries())
+        .filter(([key]) => key.startsWith('content:'))
+        .map(([key, value]) => value as ContentRecord);
+      
+      // Apply filters
+      let filtered = contentEntries.filter(content => {
+        if (query.trim()) {
+          const searchText = `${content.title} ${content.selftext || ''} ${content.body || ''}`.toLowerCase();
+          if (!searchText.includes(query.toLowerCase())) return false;
+        }
+        
+        if (filters.subreddit && content.subreddit !== filters.subreddit) return false;
+        if (filters.author && content.author !== filters.author) return false;
+        if (filters.dateFrom && content.created_utc < filters.dateFrom) return false;
+        if (filters.dateTo && content.created_utc > filters.dateTo) return false;
+        if (filters.minScore && content.score < filters.minScore) return false;
+        
+        return true;
+      });
+      
+      // Sort by saved_at descending
+      filtered.sort((a, b) => b.saved_at - a.saved_at);
+      
+      // Apply pagination
+      filtered = filtered.slice(offset, offset + limit);
+      
+      return filtered.map(content => ({
+        content,
+        media: [], // TODO: Implement media storage for browser
+        tags: [], // TODO: Implement tags for browser
+        relevance: 1.0
+      }));
+    }
+    
     let sql = `
       SELECT 
         c.*,
@@ -316,6 +406,11 @@ export class DatabaseService {
    * Get content by ID
    */
   public getContentById(id: string): ContentRecord | null {
+    if (isBrowser) {
+      // In browser, get from memory
+      return this.inMemoryData.get(`content:${id}`) as ContentRecord || null;
+    }
+    
     const stmt = this.db.prepare('SELECT * FROM content WHERE id = ?');
     const row = stmt.get(id) as any;
     
@@ -347,6 +442,12 @@ export class DatabaseService {
    * Get media for content
    */
   public getMediaForContent(contentId: string): MediaRecord[] {
+    if (isBrowser) {
+      // In browser, return empty array for now
+      // TODO: Implement media storage for browser
+      return [];
+    }
+    
     const stmt = this.db.prepare('SELECT * FROM media WHERE content_id = ?');
     const rows = stmt.all(contentId) as any[];
     

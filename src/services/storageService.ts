@@ -1,5 +1,15 @@
-import { promises as fs } from 'fs';
-import path from 'path';
+// Check if we're in a browser environment
+const isBrowser = typeof window !== 'undefined';
+
+// Only import Node.js modules if we're not in a browser
+let fs: any;
+let path: any;
+
+if (!isBrowser) {
+  fs = require('fs').promises;
+  path = require('path');
+}
+
 import type { ContentMetadata } from '../types';
 import type { ContentItem } from './contentService';
 import { FileUtils } from '../utils/fileUtils';
@@ -29,20 +39,29 @@ export class StorageService {
   private fileUtils: FileUtils;
   private folderOrganizer: FolderOrganizer;
   private config: StorageConfig;
+  private inMemoryStorage: Map<string, ContentMetadata> = new Map();
 
   constructor(config: StorageConfig) {
     this.config = config;
-    this.fileUtils = new FileUtils(config.basePath);
-    this.folderOrganizer = new FolderOrganizer({
-      groupBySubreddit: config.organizeBySubreddit,
-      groupByAuthor: config.organizeByAuthor
-    });
+    
+    if (!isBrowser) {
+      this.fileUtils = new FileUtils(config.basePath);
+      this.folderOrganizer = new FolderOrganizer({
+        groupBySubreddit: config.organizeBySubreddit,
+        groupByAuthor: config.organizeByAuthor
+      });
+    }
   }
 
   /**
    * Initialize storage system
    */
   public async initialize(): Promise<void> {
+    if (isBrowser) {
+      console.log('Initialized in-memory storage for browser environment');
+      return;
+    }
+    
     await this.fileUtils.initializeFolderStructure();
   }
 
@@ -67,9 +86,15 @@ export class StorageService {
       score: item.metadata.score,
       localPath: filePath,
       mediaFiles: [filePath],
-      folderPath: path.dirname(filePath),
+      folderPath: isBrowser ? '/' : path.dirname(filePath),
       downloadedAt: Date.now()
     };
+
+    if (isBrowser) {
+      // In browser, store in memory
+      this.inMemoryStorage.set(item.id, metadata);
+      return metadata;
+    }
 
     // Save metadata
     await this.fileUtils.writeMetadata(metadata);
@@ -187,6 +212,12 @@ export class StorageService {
    * Get all content metadata
    */
   public async getAllContentMetadata(): Promise<ContentMetadata[]> {
+    if (isBrowser) {
+      // In browser, return in-memory data
+      return Array.from(this.inMemoryStorage.values())
+        .sort((a, b) => b.downloadedAt - a.downloadedAt);
+    }
+    
     try {
       const metadataPath = this.fileUtils.getConfig().metadataPath;
       const files = await fs.readdir(metadataPath);

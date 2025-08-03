@@ -1,4 +1,5 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios from 'axios';
+import type { AxiosInstance, AxiosResponse } from 'axios';
 
 // Reddit API Configuration
 const REDDIT_API_BASE = 'https://oauth.reddit.com';

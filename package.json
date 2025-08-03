@@ -1,9 +1,13 @@
 {
   "name": "reddit-saver-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "A desktop application for downloading and organizing saved Reddit content",
   "type": "module",
   "main": "dist-electron/main.js",
+  "keywords": ["reddit", "media", "downloader", "electron", "react", "typescript"],
+  "author": "Your Name",
+  "license": "MIT",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -3,11 +3,15 @@ import { Auth } from './Auth';
 import { DownloadManager } from './DownloadManager';
 import { ContentBrowser } from './ContentBrowser';
 import { SettingsPanel } from './SettingsPanel';
+import { DebugPanel } from './DebugPanel';
+import { ErrorBoundary } from './ErrorBoundary';
 import { authService, AuthConfig } from '../services/authService';
 import { contentService } from '../services/contentService';
-import { storageService, StorageConfig } from '../services/storageService';
+import { StorageService, StorageConfig } from '../services/storageService';
 import { databaseManager } from '../services/databaseService';
-import type { ContentItem, AuthState } from '../types';
+import { logger } from '../utils/logger';
+import type { AuthState } from '../types';
+import type { ContentItem } from '../services/contentService';
 
 export interface AppConfig {
   auth: AuthConfig;
@@ -26,29 +30,44 @@ export const App: React.FC<AppProps> = ({ config }) => {
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDebugPanel, setShowDebugPanel] = useState(false);
 
   useEffect(() => {
-    // Initialize services
-    authService.initialize(config.auth);
+    console.log('App component initializing with config:', config);
     
-    const storage = new storageService(config.storage);
-    storage.initialize();
+    try {
+      // Initialize services
+      authService.initialize(config.auth);
+      console.log('Auth service initialized');
+      
+      const storage = new StorageService(config.storage);
+      storage.initialize();
+      console.log('Storage service initialized');
 
-    // Initialize database
-    databaseManager.initialize().catch(error => {
-      console.error('Failed to initialize database:', error);
-      setError('Failed to initialize database');
-    });
+      // Initialize database
+      databaseManager.initialize().catch(error => {
+        logger.logError(error, 'App initialization');
+        console.error('Failed to initialize database:', error);
+        setError('Failed to initialize database');
+      });
 
-    // Subscribe to auth state changes
-    const unsubscribe = authService.subscribe((state) => {
-      setAuthState(state);
-      if (state.isAuthenticated && currentView === 'auth') {
-        setCurrentView('content');
-      }
-    });
+      // Subscribe to auth state changes
+      const unsubscribe = authService.subscribe((state) => {
+        console.log('Auth state changed:', state);
+        setAuthState(state);
+        if (state.isAuthenticated && currentView === 'auth') {
+          setCurrentView('content');
+        }
+      });
 
-    return () => unsubscribe();
+      // Log app initialization
+      logger.info('App initialized successfully', { config: { auth: !!config.auth, storage: !!config.storage } });
+
+      return () => unsubscribe();
+    } catch (error) {
+      console.error('Error during app initialization:', error);
+      setError('Failed to initialize app');
+    }
   }, [config]);
 
   const handleAuthSuccess = async (user: any) => {
@@ -140,7 +159,16 @@ export const App: React.FC<AppProps> = ({ config }) => {
                   {authState.user?.name}
                 </span>
               </div>
-              <div className="ml-4">
+              <div className="ml-4 flex items-center space-x-2">
+                {process.env.NODE_ENV === 'development' && (
+                  <button
+                    onClick={() => setShowDebugPanel(true)}
+                    className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1 rounded border"
+                    title="Debug Panel"
+                  >
+                    🐛
+                  </button>
+                )}
                 <button
                   onClick={() => authService.logout()}
                   className="text-sm text-gray-500 hover:text-gray-700"
@@ -245,9 +273,15 @@ export const App: React.FC<AppProps> = ({ config }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {renderNavigation()}
-      {renderContent()}
-    </div>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-gray-50">
+        {renderNavigation()}
+        {renderContent()}
+        <DebugPanel
+          isVisible={showDebugPanel}
+          onClose={() => setShowDebugPanel(false)}
+        />
+      </div>
+    </ErrorBoundary>
   );
 }; 
