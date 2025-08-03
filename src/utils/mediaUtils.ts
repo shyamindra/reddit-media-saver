@@ -157,8 +157,22 @@ export class MediaUtils {
     subreddit: string,
     author: string,
     mediaType: 'image' | 'video' | 'note',
-    extension: string
+    extension: string,
+    url?: string
   ): string {
+    // For RedGIFs URLs, extract the original filename
+    if (url && url.includes('redgifs.com')) {
+      const match = url.match(/https:\/\/media\.redgifs\.com\/([^\/]+)/);
+      if (match) {
+        let filename = match[1];
+        // Remove .mp4 extension if it's already in the filename
+        if (filename.endsWith('.mp4')) {
+          filename = filename.slice(0, -4);
+        }
+        return `${filename}.mp4`;
+      }
+    }
+    
     // Sanitize the title for filesystem compatibility
     const sanitizedTitle = title
       .replace(/[<>:"/\\|?*]/g, '')

@@ -254,7 +254,7 @@ export class ContentDownloadService {
       const contentType = response.headers['content-type'] || '';
       const mediaInfo = this.detectMediaTypeFromResponse(url, contentType, response.data);
       
-      const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', mediaInfo.type, mediaInfo.extension || '');
+      const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', mediaInfo.type, mediaInfo.extension || '', url);
       
       let outputPath: string;
       if (mediaInfo.type === 'gif') {
@@ -272,9 +272,38 @@ export class ContentDownloadService {
 
       // Save file based on content type
       if (mediaInfo.type === 'text') {
-        // Save text content as UTF-8
-        writeFileSync(outputPath, response.data.toString('utf8'), 'utf8');
-        console.log(`✅ Saved text content: ${filename} (${this.formatFileSize(response.data.length)})`);
+        // Check if this is HTML content that might contain video URLs
+        const htmlContent = response.data.toString('utf8');
+        
+        // If this looks like a video URL that returned HTML, try to extract video
+        if (url.includes('redgifs.com')) {
+          console.log(`🔍 Detected HTML content from RedGIFs URL, attempting to extract video...`);
+          const videoResult = await this.tryExtractVideoFromHtml(htmlContent, url, title, subreddit, 0);
+        } else if (url.includes('v.redd.it')) {
+          console.log(`🔍 Detected HTML content from Reddit URL, attempting to extract video...`);
+          const videoResult = await this.tryExtractVideoFromHtml(htmlContent, url, title, subreddit, 0);
+          
+          if (videoResult.success) {
+            // Video extraction succeeded, return the video result
+            return videoResult;
+          } else {
+            // Video extraction failed, save as text file
+            console.log(`⚠️  Video extraction failed, saving as text file`);
+            writeFileSync(outputPath, htmlContent, 'utf8');
+            console.log(`✅ Saved text content: ${filename} (${this.formatFileSize(response.data.length)})`);
+            return {
+              success: true,
+              filePath: outputPath,
+              contentType: contentType,
+              title,
+              subreddit
+            };
+          }
+        } else {
+          // Regular text content, save as-is
+          writeFileSync(outputPath, htmlContent, 'utf8');
+          console.log(`✅ Saved text content: ${filename} (${this.formatFileSize(response.data.length)})`);
+        }
       } else {
         // Save binary content as-is
         writeFileSync(outputPath, response.data);
@@ -333,7 +362,7 @@ export class ContentDownloadService {
         const contentType = response.headers['content-type'] || '';
         const mediaInfo = this.detectMediaTypeFromResponse(altUrl, contentType, response.data);
         
-        const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', mediaInfo.type, mediaInfo.extension || '');
+        const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', mediaInfo.type, mediaInfo.extension || '', altUrl);
         
         let outputPath: string;
         if (mediaInfo.type === 'gif') {
@@ -462,6 +491,176 @@ export class ContentDownloadService {
   }
 
   /**
+   * Extract video URLs from HTML content
+   */
+  private extractVideoUrlsFromHtml(htmlContent: string, originalUrl: string): string[] {
+    const urls: string[] = [];
+    
+    // Decode HTML entities first
+    const decodedContent = htmlContent
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+    
+    // Extract RedGIFs video URLs from meta tags
+    const redgifsMatch = decodedContent.match(/<meta property="og:video" content="([^"]+)"/);
+    if (redgifsMatch) {
+      urls.push(redgifsMatch[1]);
+    }
+    
+    // Extract RedGIFs video URLs from JSON-LD
+    const jsonLdMatch = decodedContent.match(/"contentUrl":"([^"]+\.mp4)"/);
+    if (jsonLdMatch) {
+      urls.push(jsonLdMatch[1]);
+    }
+    
+    // Extract RedGIFs URLs from various patterns
+    const redgifsPatterns = [
+      /https:\/\/media\.redgifs\.com\/[a-zA-Z0-9_-]+\.mp4/g,
+      /https:\/\/media\.redgifs\.com\/[a-zA-Z0-9_-]+-silent\.mp4/g
+    ];
+    
+    redgifsPatterns.forEach(pattern => {
+      const matches = decodedContent.match(pattern);
+      if (matches) {
+        urls.push(...matches);
+      }
+    });
+    
+    // Extract v.redd.it video URLs (clean ones)
+    const vredditMatches = decodedContent.match(/https:\/\/v\.redd\.it\/[a-zA-Z0-9]+/g);
+    if (vredditMatches) {
+      urls.push(...vredditMatches);
+    }
+    
+    // Extract DASH audio URLs
+    const dashMatches = decodedContent.match(/https:\/\/v\.redd\.it\/[a-zA-Z0-9]+\/DASH_96\.mp4/g);
+    if (dashMatches) {
+      urls.push(...dashMatches);
+    }
+    
+    // Extract packaged-media URLs (clean ones)
+    const packagedMatches = decodedContent.match(/https:\/\/packaged-media\.redd\.it\/[a-zA-Z0-9]+\/pb\/m2-res_[0-9]+p\.mp4\?[^"'\s]+/g);
+    if (packagedMatches) {
+      // Clean up the URLs by removing extra content
+      const cleanPackaged = packagedMatches.map(url => {
+        const cleanUrl = url.split('&quot;')[0]; // Remove everything after &quot;
+        return cleanUrl;
+      });
+      urls.push(...cleanPackaged);
+    }
+    
+    // Extract any other video URLs
+    const videoMatches = decodedContent.match(/https:\/\/[^"'\s]+\.(mp4|webm|mov|avi|mkv)/g);
+    if (videoMatches) {
+      urls.push(...videoMatches);
+    }
+    
+    return [...new Set(urls)]; // Remove duplicates
+  }
+
+  /**
+   * Try to extract and download video from HTML content
+   */
+  private async tryExtractVideoFromHtml(htmlContent: string, originalUrl: string, title: string, subreddit: string, depth: number = 0): Promise<DownloadResult> {
+    // Prevent infinite recursion
+    if (depth > 2) {
+      console.log(`⚠️  Maximum recursion depth reached, stopping video extraction`);
+      return { success: false, error: 'Maximum recursion depth reached' };
+    }
+    
+    console.log(`🔍 Attempting to extract video URLs from HTML content: ${originalUrl} (depth: ${depth})`);
+    
+    const videoUrls = this.extractVideoUrlsFromHtml(htmlContent, originalUrl);
+    
+    if (videoUrls.length === 0) {
+      console.log(`❌ No video URLs found in HTML content`);
+      return { success: false, error: 'No video URLs found in HTML content' };
+    }
+    
+    console.log(`🎬 Found ${videoUrls.length} video URL(s) in HTML content`);
+    
+    // Try each video URL until one works
+    for (let i = 0; i < videoUrls.length; i++) {
+      const videoUrl = videoUrls[i];
+      console.log(`📥 Trying video URL ${i + 1}/${videoUrls.length}: ${videoUrl}`);
+      
+      try {
+        // Use a different method to download the actual video file
+        const result = await this.downloadVideoFile(videoUrl, title, subreddit, depth + 1);
+        if (result.success) {
+          console.log(`✅ Successfully downloaded video from extracted URL: ${result.filePath}`);
+          return result;
+        } else {
+          console.log(`❌ Failed to download from extracted URL: ${result.error}`);
+        }
+      } catch (error) {
+        console.log(`❌ Error downloading from extracted URL: ${error}`);
+      }
+    }
+    
+    console.log(`❌ All extracted video URLs failed to download`);
+    return { success: false, error: 'All extracted video URLs failed to download' };
+  }
+
+  /**
+   * Download video file directly without HTML extraction recursion
+   */
+  private async downloadVideoFile(url: string, title: string, subreddit: string, depth: number = 0): Promise<DownloadResult> {
+    try {
+      console.log(`📥 Downloading video file directly: ${url}`);
+      
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+        headers: { 
+          'User-Agent': this.userAgent,
+          'Accept': 'video/*,*/*',
+          'Accept-Encoding': 'gzip, deflate',
+          'Referer': 'https://www.reddit.com/',
+          'Origin': 'https://www.reddit.com'
+        },
+        timeout: 30000,
+        maxRedirects: 5,
+        validateStatus: (status) => status < 500
+      });
+
+      // Check if we got actual video content
+      const contentType = response.headers['content-type'] || '';
+      const isVideo = contentType.includes('video/') || url.includes('.mp4') || url.includes('.webm') || url.includes('.mov');
+      
+      if (!isVideo && this.isHtmlOrTextContent(response.data)) {
+        console.log(`⚠️  Video URL returned HTML content, skipping`);
+        return { success: false, error: 'Video URL returned HTML content' };
+      }
+
+      // Generate filename for video
+      const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', 'video', '.mp4', url);
+      const outputPath = join(this.outputDir, 'Videos', filename);
+      
+      // Ensure directory exists
+      mkdirSync(dirname(outputPath), { recursive: true });
+
+      // Save video file
+      writeFileSync(outputPath, response.data);
+      console.log(`✅ Downloaded video: ${filename} (${this.formatFileSize(response.data.length)})`);
+      
+      return {
+        success: true,
+        filePath: outputPath,
+        contentType: contentType,
+        title,
+        subreddit
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to download video file';
+      console.error(`❌ Failed to download video file ${url}: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
    * Calculate the ratio of readable text characters in a string
    */
   private calculateTextRatio(text: string): number {
@@ -513,7 +712,7 @@ export class ContentDownloadService {
    */
   private async saveTextContent(title: string, subreddit: string, content: string): Promise<DownloadResult> {
     try {
-      const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', 'note', '.txt');
+      const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', 'note', '.txt', '');
       const outputPath = join(this.outputDir, 'Notes', filename);
 
       // Ensure directory exists
