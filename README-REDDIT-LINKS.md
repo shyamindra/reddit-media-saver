@@ -1,123 +1,270 @@
-# Reddit Links File Download Feature
+# Reddit Links File Download - Consolidated Guide
 
-A simple feature to download Reddit content from a text file containing Reddit URLs.
+## 🎯 **Overview**
+This guide covers the consolidated Reddit media download system that processes URLs from CSV files and downloads content automatically.
 
-## Quick Start
-
-1. **Create CSV files** with Reddit URLs in the `reddit-links/` directory:
-   ```
-   # reddit-links/sample.csv
-   video1,https://www.reddit.com/r/pics/comments/abc123/some_post/
-   question1,https://www.reddit.com/r/videos/comments/def456/another_post/
-   comment1,https://www.reddit.com/r/AskReddit/comments/ghi789/comment/abc123/
-   ```
-
-2. **Place your CSV files** in the `reddit-links/` directory
-
-3. **Run the download script**:
-   ```bash
-   npm run process-links
-   ```
-
-4. **Check the results**:
-   - Downloaded content will be in the `downloads/` folder
-   - Failed downloads will be saved to `failed-downloads.txt`
-   - Retry failed downloads with: `npm run retry-failed`
-
-## Features
-
-- ✅ **URL Validation**: Validates Reddit URLs before processing
-- ✅ **Content Detection**: Automatically detects posts, comments, and media
-- ✅ **Media Download**: Downloads images, videos, and other media files
-- ✅ **Text Content**: Saves text posts and comments as `.txt` files
-- ✅ **Organized Storage**: Uses existing folder structure (Images, Videos, Notes)
-- ✅ **Smart Filenames**: Generates descriptive filenames using post titles
-- ✅ **Error Handling**: Tracks failed downloads for retry
-- ✅ **Progress Tracking**: Shows download progress and summary
-
-## File Organization
-
+## 📁 **File Structure**
 ```
-reddit-links/        # Input CSV files
-├── sample.csv       # Your Reddit URLs
-├── batch1.csv       # Multiple files supported
-└── batch2.csv       # All CSV files processed
+reddit-links/             # Input directory with CSV files
+├── sample.csv            # CSV files with key,URL format
+├── batch2.csv            # Multiple files supported
+└── your-files.csv        # Add more CSV files
 
-downloads/            # Output organized content
-├── Images/          # Downloaded images (JPG, PNG, etc.)
-├── Videos/          # Downloaded videos (MP4, WebM, etc.)
-├── Gifs/            # Downloaded GIFs (animated images)
-└── Notes/           # Text content (posts/comments)
+downloads/                # Output directory (auto-created)
+├── Images/               # Downloaded images
+├── Videos/               # Downloaded videos
+├── Gifs/                 # Downloaded GIFs
+└── Notes/                # Text posts and links
+
+failed-downloads.txt      # Failed URLs for retry
 ```
 
-## CSV Format
+## 🚀 **Quick Start**
 
-The CSV files should have the following format:
+### **Basic Usage**
+```bash
+# Process all URLs from CSV files
+npm run process-links
+
+# Test with first 20 URLs
+npm run process-links:test
+
+# Process in batch mode
+npm run process-links:batch
+
+# Show help
+npm run process-links:help
 ```
-key,URL
-video1,https://www.reddit.com/r/pics/comments/abc123/some_post/
-question1,https://www.reddit.com/r/videos/comments/def456/another_post/
-comment1,https://www.reddit.com/r/AskReddit/comments/ghi789/comment/abc123/
+
+### **Advanced Usage**
+```bash
+# Process with custom options
+npm run process-links -- --limit 50 --input my-links --output my-downloads
+
+# Test with specific number of URLs
+npm run process-links -- --test --limit 10
+
+# Use custom input directory
+npm run process-links -- --input custom-links
 ```
 
-- **First column**: Key/identifier (required)
-- **Second column**: Reddit URL (required)
-- **Comments**: Lines starting with `#` are ignored
-- **Post titles**: Retrieved automatically from Reddit post data
+## 📄 **CSV File Format**
 
-## Supported URL Formats
+### **Required Format**
+CSV files should have the following format:
+```csv
+key1,https://www.reddit.com/r/pics/comments/abc123/some_post/
+key2,https://www.reddit.com/r/videos/comments/def456/another_post/
+key3,https://www.reddit.com/r/AskReddit/comments/ghi789/comment/abc123/
+```
 
-- **Posts**: `https://www.reddit.com/r/subreddit/comments/postid/title/`
-- **Comments**: `https://www.reddit.com/r/subreddit/comments/postid/title/comment/commentid/`
-- **Media**: Automatically detected from post content
+### **File Requirements**
+- Files must be in the `reddit-links/` directory
+- Files must have `.csv` extension
+- First column: key/identifier (can be anything)
+- Second column: Reddit URL
+- Lines starting with `#` are treated as comments
+- Empty lines are ignored
 
-## Commands
+## 🔧 **Available Commands**
 
-- `npm run process-links` - Process URLs from CSV files
-- `npm run retry-failed` - Retry failed downloads from `failed-downloads.txt`
-- `npm run debug-api` - Test Reddit API access
-- `npm run organize-downloads` - Basic file organization by similarity
-- `npm run organize-downloads-advanced` - Advanced organization by patterns
-- `npm run move-gifs` - Move GIFs to dedicated Gifs folder
+### **Main Processing**
+```bash
+npm run process-links              # Process all URLs
+npm run process-links:test         # Test with 20 URLs
+npm run process-links:batch        # Batch processing mode
+npm run process-links:help         # Show help
+```
 
-## Error Handling
+### **Batch Processing (Rate Limiting)**
+```bash
+npm run process-links:batch20      # Process 20 URLs
+npm run process-links:batch50      # Process 50 URLs
+npm run process-links:batch100     # Process 100 URLs
+```
 
-- Invalid URLs are skipped and logged
-- Network errors are retried automatically
+### **Command Line Options**
+```bash
+--test, -t              # Test mode (20 URLs by default)
+--batch, -b             # Batch mode
+--limit <number>, -l    # Limit number of URLs
+--offset <number>, -o   # Start from this URL index (for rate limiting)
+--input <dir>, -i       # Input directory
+--output <dir>, -out    # Output directory
+--retry, -r             # Retry failed downloads
+--help, -h              # Show help
+```
+
+### **Utility Commands**
+```bash
+npm run retry-failed              # Retry failed downloads
+npm run organize-downloads        # Organize downloaded files
+npm run organize-downloads-advanced  # Advanced organization
+npm run move-gifs                 # Move GIFs to dedicated folder
+npm run debug-api                 # Debug Reddit API
+```
+
+## 📊 **Features**
+
+### **✅ What Works**
+- ✅ CSV file reading and validation
+- ✅ Reddit URL parsing and validation
+- ✅ Content type detection (images, videos, GIFs, text)
+- ✅ Automatic file organization
+- ✅ Progress tracking and reporting
+- ✅ Failed download retry system
+- ✅ Command line options and modes
+- ✅ Error handling and logging
+
+### **📁 Content Organization**
+- **Images**: JPG, PNG, WebP files → `downloads/Images/`
+- **Videos**: MP4, WebM files → `downloads/Videos/`
+- **GIFs**: GIF files → `downloads/Gifs/`
+- **Text Posts**: Self posts → `downloads/Notes/`
+- **Links**: External links → `downloads/Notes/`
+
+### **🔄 Retry System**
 - Failed downloads are saved to `failed-downloads.txt`
-- Rate limiting is handled with delays
+- Use `npm run retry-failed` to retry failed downloads
+- Automatic error categorization and handling
 
-## Example Output
+### **⏱️ Rate Limiting**
+- Process URLs in small batches to avoid 429 errors
+- Use `--offset` and `--limit` to control batch size
+- Script shows next batch command for easy continuation
+- Built-in 1-second delay between requests
 
+## 🛠 **Technical Details**
+
+### **Architecture**
+- **TypeScript-based**: Robust type safety and error handling
+- **Service-oriented**: Clear separation of concerns
+- **Modular design**: Easy to extend and maintain
+
+### **Key Services**
+- `FileInputService`: CSV processing and URL validation
+- `ContentDownloadService`: Content downloading and organization
+- `MediaUtils`: File type detection and naming
+- `FolderOrganizer`: File organization and grouping
+
+### **Error Handling**
+1. **Invalid URLs**: Skipped and logged
+2. **Network Errors**: Retried up to 3 times
+3. **Rate Limiting**: Automatic delays and retries
+4. **File System Errors**: Logged and continued
+5. **Content Not Found**: Skipped and logged
+
+## 📈 **Performance**
+
+### **Speed Estimates**
+- **Small batch (20 URLs)**: ~1-2 minutes
+- **Medium batch (100 URLs)**: ~5-10 minutes
+- **Large batch (1000+ URLs)**: ~1-2 hours
+
+### **Rate Limiting**
+- 1 second delay between requests (respectful to Reddit)
+- Automatic retry on rate limit errors
+- User-Agent header for API compliance
+
+## 🔍 **Troubleshooting**
+
+### **Common Issues**
+
+#### **No URLs Found**
+```bash
+# Check if CSV files exist
+ls reddit-links/
+
+# Check CSV format
+head -5 reddit-links/sample.csv
 ```
-🔗 Processing Reddit URLs from file...
 
-📊 URL Validation Results:
-   Total URLs found: 3
-   Valid URLs: 2
-   Invalid URLs: 1
+#### **Download Failures**
+```bash
+# Check failed downloads
+cat failed-downloads.txt
 
-🚀 Starting content download...
-
-[1/2] 📥 Processing: https://www.reddit.com/r/pics/comments/abc123/some_post/
-✅ Downloaded: Some_Amazing_Picture_pics.jpg
-
-[2/2] 📥 Processing: https://www.reddit.com/r/AskReddit/comments/def456/question/
-✅ Saved: What_is_the_most_useless_fact_you_know_AskReddit.txt
-
-📊 Download Summary:
-   Total processed: 2
-   Successful: 2
-   Failed: 0
-
-📁 Downloaded content saved to: downloads/
-
-✨ Processing complete!
+# Retry failed downloads
+npm run retry-failed
 ```
 
-## Notes
+#### **Permission Errors**
+```bash
+# Check directory permissions
+ls -la downloads/
 
-- No authentication required (uses public Reddit API)
-- Respects Reddit's rate limits with built-in delays
-- Works with both browser and Electron environments
-- Leverages existing organization and filename generation logic 
+# Create directories manually if needed
+mkdir -p downloads/{Images,Videos,Gifs,Notes}
+```
+
+### **Debug Mode**
+```bash
+# Enable debug logging
+DEBUG=* npm run process-links
+
+# Test API connectivity
+npm run debug-api
+```
+
+## 📝 **Examples**
+
+### **Example 1: Basic Processing**
+```bash
+# Process all URLs from CSV files
+npm run process-links
+```
+
+### **Example 2: Test Mode**
+```bash
+# Test with first 20 URLs
+npm run process-links:test
+```
+
+### **Example 3: Custom Limit**
+```bash
+# Process first 50 URLs
+npm run process-links -- --limit 50
+```
+
+### **Example 4: Rate Limiting with Offset**
+```bash
+# Process URLs 0-20 (first batch)
+npm run process-links -- --limit 20
+
+# Process URLs 20-40 (second batch)
+npm run process-links -- --offset 20 --limit 20
+
+# Process URLs 40-60 (third batch)
+npm run process-links -- --offset 40 --limit 20
+
+# Process URLs 60-80 (fourth batch)
+npm run process-links -- --offset 60 --limit 20
+```
+
+### **Example 5: Custom Directories**
+```bash
+# Use custom input and output directories
+npm run process-links -- --input my-links --output my-downloads
+```
+
+### **Example 6: Retry Failed Downloads**
+```bash
+# Retry previously failed downloads
+npm run retry-failed
+```
+
+## 🎯 **Success Criteria**
+- [x] Process 100+ URLs successfully
+- [x] Organize content in correct folders
+- [x] Generate meaningful filenames
+- [x] Provide clear summary report
+- [x] Support retry functionality
+- [x] Handle errors gracefully
+- [x] Command line interface
+- [x] Multiple processing modes
+
+## 📚 **Related Documentation**
+- [CURRENT_STATUS.md](./CURRENT_STATUS.md) - Current project status
+- [CLEANUP_PLAN.md](./CLEANUP_PLAN.md) - Cleanup implementation details
+- [API.md](./API.md) - API documentation
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Troubleshooting guide 

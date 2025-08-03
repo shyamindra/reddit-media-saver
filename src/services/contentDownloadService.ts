@@ -228,7 +228,7 @@ export class ContentDownloadService {
    */
   private async saveTextContent(title: string, subreddit: string, content: string): Promise<DownloadResult> {
     try {
-      const filename = MediaUtils.generateFilename(title, subreddit, '.txt');
+      const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', 'note', '.txt');
       const outputPath = join(this.outputDir, 'Notes', filename);
 
       // Ensure directory exists
