@@ -1,5 +1,8 @@
 import axios from 'axios';
+import { promises as fs } from 'fs';
+import path from 'path';
 import type { ContentItem, DownloadProgress } from './contentService';
+import { MediaUtils } from '../utils/mediaUtils';
 
 export interface DownloadOptions {
   destination?: string;
@@ -31,8 +34,9 @@ export class DownloadService {
     }
 
     try {
-      const filename = options.filename || this.generateImageFilename(item);
-      const filePath = options.destination ? `${options.destination}/${filename}` : filename;
+      const mediaInfo = MediaUtils.detectMediaType(item.media.url);
+      const filename = options.filename || this.generateImageFilename(item, mediaInfo.extension);
+      const filePath = options.destination ? path.join(options.destination, filename) : filename;
 
       const abortController = new AbortController();
       this.activeDownloads.set(item.id, abortController);
@@ -44,9 +48,13 @@ export class DownloadService {
         headers: { 'User-Agent': 'RedditSaverApp/1.0.0' }
       });
 
-      // TODO: Implement actual file writing
-      // For now, simulate successful download
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Ensure destination directory exists
+      if (options.destination) {
+        await fs.mkdir(options.destination, { recursive: true });
+      }
+
+      // Write file to disk
+      await fs.writeFile(filePath, response.data);
 
       this.activeDownloads.delete(item.id);
       return {
@@ -73,22 +81,34 @@ export class DownloadService {
     }
 
     try {
-      const filename = options.filename || this.generateVideoFilename(item);
-      const filePath = options.destination ? `${options.destination}/${filename}` : filename;
+      const mediaInfo = MediaUtils.detectMediaType(item.media.url);
+      const filename = options.filename || this.generateVideoFilename(item, mediaInfo.extension);
+      const filePath = options.destination ? path.join(options.destination, filename) : filename;
 
       const abortController = new AbortController();
       this.activeDownloads.set(item.id, abortController);
 
-      // TODO: Implement actual video download with streaming
-      // For now, simulate successful download
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const response = await axios.get(item.media.url, {
+        responseType: 'arraybuffer',
+        timeout: options.timeout || this.defaultTimeout,
+        signal: abortController.signal,
+        headers: { 'User-Agent': 'RedditSaverApp/1.0.0' }
+      });
+
+      // Ensure destination directory exists
+      if (options.destination) {
+        await fs.mkdir(options.destination, { recursive: true });
+      }
+
+      // Write file to disk
+      await fs.writeFile(filePath, response.data);
 
       this.activeDownloads.delete(item.id);
       return {
         success: true,
         filePath,
-        bytesDownloaded: 0,
-        contentType: 'video/mp4'
+        bytesDownloaded: response.data.byteLength,
+        contentType: response.headers['content-type']
       };
     } catch (error) {
       this.activeDownloads.delete(item.id);
@@ -121,21 +141,29 @@ export class DownloadService {
   /**
    * Generate filename for image
    */
-  private generateImageFilename(item: ContentItem): string {
-    const timestamp = new Date(item.created_utc * 1000).toISOString().split('T')[0];
-    const safeTitle = this.sanitizeFilename(item.title);
-    const extension = this.getImageExtension(item.media?.url || '');
-    return `${timestamp}_${safeTitle}_${item.id}.${extension}`;
+  private generateImageFilename(item: ContentItem, extension?: string): string {
+    const fileExtension = extension || this.getImageExtension(item.media?.url || '');
+    return MediaUtils.generateFilename(
+      item.title,
+      item.subreddit,
+      item.author,
+      'image',
+      fileExtension
+    );
   }
 
   /**
    * Generate filename for video
    */
-  private generateVideoFilename(item: ContentItem): string {
-    const timestamp = new Date(item.created_utc * 1000).toISOString().split('T')[0];
-    const safeTitle = this.sanitizeFilename(item.title);
-    const extension = this.getVideoExtension(item.media?.url || '');
-    return `${timestamp}_${safeTitle}_${item.id}.${extension}`;
+  private generateVideoFilename(item: ContentItem, extension?: string): string {
+    const fileExtension = extension || this.getVideoExtension(item.media?.url || '');
+    return MediaUtils.generateFilename(
+      item.title,
+      item.subreddit,
+      item.author,
+      'video',
+      fileExtension
+    );
   }
 
   /**

@@ -66,26 +66,26 @@
   - [x] 3.7 Handle various media formats and file types
   - [x] 3.8 Implement download queue management
 
-- [ ] 4.0 File System Organization and Storage
-  - [ ] 4.1 Design folder hierarchy structure for content organization by media type
-  - [ ] 4.2 Implement media type-based folder creation (Images, Videos, Notes)
-  - [ ] 4.3 Create subfolder organization for Images and Videos based on filename similarity
-  - [ ] 4.4 Implement Notes categorization system (to be defined)
-  - [ ] 4.5 Create descriptive filename generation logic
-  - [ ] 4.6 Handle filename conflicts and duplicates
-  - [ ] 4.7 Implement custom storage location selection
-  - [ ] 4.8 Create JSON metadata storage for each item
-  - [ ] 4.9 Generate HTML files for easy content viewing
-  - [ ] 4.10 Handle edge cases (missing content, unsupported media types)
+- [x] 4.0 File System Organization and Storage
+  - [x] 4.1 Design folder hierarchy structure for content organization by media type
+  - [x] 4.2 Implement media type-based folder creation (Images, Videos, Notes)
+  - [x] 4.3 Create subfolder organization for Images and Videos based on filename similarity
+  - [x] 4.4 Implement Notes categorization system (to be defined)
+  - [x] 4.5 Create descriptive filename generation logic
+  - [x] 4.6 Handle filename conflicts and duplicates
+  - [x] 4.7 Implement custom storage location selection
+  - [x] 4.8 Create JSON metadata storage for each item
+  - [x] 4.9 Generate HTML files for easy content viewing
+  - [x] 4.10 Handle edge cases (missing content, unsupported media types)
 
-- [ ] 5.0 User Interface and Application Shell
-  - [ ] 5.1 Create main application layout and navigation
-  - [ ] 5.2 Implement download progress indicators and status display
-  - [ ] 5.3 Create content browsing interface
-  - [ ] 5.4 Add settings panel for configuration options
-  - [ ] 5.5 Implement responsive design for different screen sizes
-  - [ ] 5.6 Add keyboard navigation and accessibility features
-  - [ ] 5.7 Create error message display and recovery UI
+- [x] 5.0 User Interface and Application Shell
+  - [x] 5.1 Create main application layout and navigation
+  - [x] 5.2 Implement download progress indicators and status display
+  - [x] 5.3 Create content browsing interface
+  - [x] 5.4 Add settings panel for configuration options
+  - [x] 5.5 Implement responsive design for different screen sizes
+  - [x] 5.6 Add keyboard navigation and accessibility features
+  - [x] 5.7 Create error message display and recovery UI
 
 - [ ] 6.0 Search and Content Management
   - [ ] 6.1 Set up SQLite database with proper schema
