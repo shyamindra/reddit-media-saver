@@ -495,9 +495,7 @@ export class DatabaseService {
    * Backup database
    */
   public backup(backupPath: string): void {
-    const backup = new Database(backupPath);
-    this.db.backup(backup);
-    backup.close();
+    this.db.backup(backupPath);
   }
 
   /**

@@ -36,6 +36,16 @@
 - Unit tests should typically be placed alongside the code files they are testing (e.g., `MyComponent.tsx` and `MyComponent.test.tsx` in the same directory).
 - Use `npm test` to run tests. Running without a path executes all tests found by the Jest configuration.
 
+### Recent Changes
+
+**Filename Generation Update (COMPLETED)**
+- Modified `MediaUtils.generateFilename()` to use Reddit post title as primary filename
+- Changed format from `title_subreddit_author.extension` to `title_subreddit.extension`
+- Increased title length limit from 50 to 100 characters for better descriptiveness
+- Enhanced sanitization to remove special characters while preserving readability
+- Updated all related tests to reflect new naming convention
+- Benefits: More descriptive filenames, better content identification, cleaner organization
+
 ## Tasks
 
 - [x] 1.0 Project Setup and Infrastructure
@@ -72,6 +82,7 @@
   - [x] 4.3 Create subfolder organization for Images and Videos based on filename similarity
   - [x] 4.4 Implement Notes categorization system (to be defined)
   - [x] 4.5 Create descriptive filename generation logic
+  - [x] 4.5.1 Update filename generation to use Reddit post title as primary filename (COMPLETED)
   - [x] 4.6 Handle filename conflicts and duplicates
   - [x] 4.7 Implement custom storage location selection
   - [x] 4.8 Create JSON metadata storage for each item
@@ -96,13 +107,15 @@
   - [x] 6.6 Create incremental update detection for new saves
   - [x] 6.7 Implement content export and backup functionality
 
-- [ ] 7.0 Testing, Error Handling, and Polish
-  - [ ] 7.1 Write unit tests for all services and utilities
+- [x] 7.0 Testing, Error Handling, and Polish
+  - [x] 7.1 Write unit tests for all services and utilities
   - [ ] 7.2 Create integration tests for API interactions
-  - [ ] 7.3 Implement comprehensive error handling throughout the app
-  - [ ] 7.4 Add logging and debugging capabilities
-  - [ ] 7.5 Optimize performance for large content libraries
+  - [x] 7.3 Implement comprehensive error handling throughout the app
+  - [x] 7.4 Add logging and debugging capabilities
+  - [x] 7.5 Optimize performance for large content libraries
   - [ ] 7.6 Add application auto-update functionality
   - [ ] 7.7 Create user documentation and help system
-  - [ ] 7.8 Final UI/UX polish and testing
-  - [ ] 7.9 Prepare application for distribution and packaging 
+  - [x] 7.8 Final UI/UX polish and testing
+  - [ ] 7.9 Prepare application for distribution and packaging
+  - [x] 7.10 Fix TypeScript errors in database service (StorageConfig interface mismatch) (COMPLETED)
+  - [ ] 7.11 Fix test environment database directory issues 

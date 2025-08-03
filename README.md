@@ -1,69 +1,113 @@
-# React + TypeScript + Vite
+# Reddit Media Saver App
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A desktop application built with Electron, React, and TypeScript that allows users to download and organize their saved Reddit content locally.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **OAuth2 Authentication**: Secure login with Reddit API
+- **Content Download**: Download saved posts and comments with media
+- **Smart File Organization**: 
+  - Automatic folder organization by media type (Images, Videos, Notes)
+  - Subfolder grouping based on filename similarity
+  - **Descriptive filenames using Reddit post titles** (e.g., `Amazing_Reddit_Post_subreddit.jpg`)
+- **Search & Management**: SQLite database for content indexing and search
+- **Progress Tracking**: Real-time download progress and status
+- **Cross-platform**: Works on Windows, macOS, and Linux
 
-## Expanding the ESLint configuration
+## File Naming Convention
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+Downloaded files are named using the Reddit post title as the primary identifier:
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Format**: `title_subreddit.extension`
+- **Example**: `Amazing_Reddit_Post_funny.jpg`
+- **Benefits**: 
+  - Easy content identification
+  - Descriptive filenames
+  - Clean organization
+  - Conflict prevention with subreddit suffix
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
+## Tech Stack
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **Frontend**: React 18 + TypeScript + Tailwind CSS
+- **Backend**: Electron + Node.js
+- **Build Tool**: Vite
+- **Database**: SQLite with better-sqlite3
+- **Testing**: Jest + React Testing Library
+- **Linting**: ESLint + Prettier
+
+## Development
+
+### Prerequisites
+
+- Node.js 18+ 
+- npm or yarn
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd reddit-saver-app
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+2. Install dependencies:
+```bash
+npm install
 ```
+
+3. Start development server:
+```bash
+npm run dev
+```
+
+### Testing
+
+Run all tests:
+```bash
+npm test
+```
+
+Run specific test files:
+```bash
+npm test -- src/utils/mediaUtils.test.ts
+```
+
+### Building
+
+Build for production:
+```bash
+npm run build
+```
+
+Build Electron app:
+```bash
+npm run build:electron
+```
+
+## Project Structure
+
+```
+src/
+├── components/          # React components
+├── services/           # Business logic and API services
+├── utils/              # Utility functions
+├── database/           # Database schema and operations
+├── types/              # TypeScript type definitions
+└── styles/             # Global styles
+```
+
+## Configuration
+
+The app supports various configuration options for file organization and download behavior. See the settings panel in the application for available options.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Submit a pull request
+
+## License
+
+[Add your license here]

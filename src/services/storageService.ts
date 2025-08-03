@@ -1,6 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { ContentItem, ContentMetadata } from '../types';
+import type { ContentMetadata } from '../types';
+import type { ContentItem } from './contentService';
 import { FileUtils } from '../utils/fileUtils';
 import { MediaUtils } from '../utils/mediaUtils';
 import { FolderOrganizer } from '../utils/folderOrganizer';

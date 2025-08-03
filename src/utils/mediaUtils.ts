@@ -150,6 +150,7 @@ export class MediaUtils {
 
   /**
    * Generate descriptive filename from content item
+   * Uses the Reddit post title as the primary filename
    */
   public static generateFilename(
     title: string,
@@ -158,15 +159,18 @@ export class MediaUtils {
     mediaType: 'image' | 'video' | 'note',
     extension: string
   ): string {
+    // Sanitize the title for filesystem compatibility
     const sanitizedTitle = title
       .replace(/[<>:"/\\|?*]/g, '')
       .replace(/\s+/g, '_')
-      .substring(0, 50);
+      .replace(/[^\w\-_]/g, '') // Remove any remaining special characters
+      .substring(0, 100); // Allow longer titles for better descriptiveness
 
-    const sanitizedSubreddit = subreddit.replace(/[<>:"/\\|?*]/g, '');
-    const sanitizedAuthor = author.replace(/[<>:"/\\|?*]/g, '');
-
-    return `${sanitizedTitle}_${sanitizedSubreddit}_${sanitizedAuthor}${extension}`;
+    // Add a short identifier to avoid conflicts and provide context
+    const sanitizedSubreddit = subreddit.replace(/[<>:"/\\|?*]/g, '').substring(0, 20);
+    
+    // Use format: title_subreddit.extension
+    return `${sanitizedTitle}_${sanitizedSubreddit}${extension}`;
   }
 
   /**

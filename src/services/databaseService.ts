@@ -1,6 +1,6 @@
 import { DatabaseService, DatabaseConfig, SearchFilters, SearchResult } from '../database';
 import { contentService } from './contentService';
-import { storageService } from './storageService';
+import { StorageService } from './storageService';
 import { downloadService } from './downloadService';
 import type { ContentItem } from './contentService';
 import type { ContentMetadata } from '../types';
@@ -34,7 +34,14 @@ export class DatabaseManager {
   private async migrateExistingData(): Promise<void> {
     try {
       // Get existing metadata from file system
-      const existingMetadata = await storageService.getAllContentMetadata();
+      const storage = new StorageService({ 
+        basePath: './downloads',
+        organizeBySubreddit: false,
+        organizeByAuthor: false,
+        createSubfolders: false,
+        generateHtmlFiles: false
+      });
+      const existingMetadata = await storage.getAllContentMetadata();
       
       if (existingMetadata.length > 0) {
         console.log(`Migrating ${existingMetadata.length} existing content items to database...`);
@@ -290,7 +297,14 @@ export class DatabaseManager {
   public async deleteContent(contentId: string): Promise<boolean> {
     try {
       // Delete from storage service first
-      await storageService.deleteContent(contentId);
+      const storage = new StorageService({ 
+        basePath: './downloads',
+        organizeBySubreddit: false,
+        organizeByAuthor: false,
+        createSubfolders: false,
+        generateHtmlFiles: false
+      });
+      await storage.deleteContent(contentId);
       
       // Delete from database (cascade will handle related records)
       const stmt = this.db['db'].prepare('DELETE FROM content WHERE id = ?');
