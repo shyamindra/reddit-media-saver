@@ -76,7 +76,7 @@ export interface DownloadItem {
   status: 'pending' | 'downloading' | 'completed' | 'error';
   error?: string;
   localPath?: string;
-  metadata?: any;
+  metadata?: unknown;
 }
 
 // File System Types
@@ -112,11 +112,11 @@ export interface AppState {
 
 // Electron API Types
 export interface ElectronAPI {
-  redditAuth: (...args: any[]) => Promise<any>;
-  downloadContent: (...args: any[]) => Promise<any>;
-  getSavedContent: (...args: any[]) => Promise<any>;
-  selectDirectory: (...args: any[]) => Promise<any>;
-  saveFile: (...args: any[]) => Promise<any>;
+  redditAuth: (...args: unknown[]) => Promise<unknown>;
+  downloadContent: (...args: unknown[]) => Promise<unknown>;
+  getSavedContent: (...args: unknown[]) => Promise<unknown>;
+  selectDirectory: (...args: unknown[]) => Promise<unknown>;
+  saveFile: (...args: unknown[]) => Promise<unknown>;
   onMainProcessMessage: (callback: (message: string) => void) => void;
   onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
   onAuthStatus: (callback: (status: AuthState) => void) => void;

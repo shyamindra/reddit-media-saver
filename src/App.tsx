@@ -5,14 +5,14 @@ import './App.css';
 declare global {
   interface Window {
     electronAPI: {
-      redditAuth: (...args: any[]) => Promise<any>;
-      downloadContent: (...args: any[]) => Promise<any>;
-      getSavedContent: (...args: any[]) => Promise<any>;
-      selectDirectory: (...args: any[]) => Promise<any>;
-      saveFile: (...args: any[]) => Promise<any>;
+      redditAuth: (...args: unknown[]) => Promise<unknown>;
+      downloadContent: (...args: unknown[]) => Promise<unknown>;
+      getSavedContent: (...args: unknown[]) => Promise<unknown>;
+      selectDirectory: (...args: unknown[]) => Promise<unknown>;
+      saveFile: (...args: unknown[]) => Promise<unknown>;
       onMainProcessMessage: (callback: (message: string) => void) => void;
-      onDownloadProgress: (callback: (progress: any) => void) => void;
-      onAuthStatus: (callback: (status: any) => void) => void;
+      onDownloadProgress: (callback: (progress: unknown) => void) => void;
+      onAuthStatus: (callback: (status: unknown) => void) => void;
     };
   }
 }

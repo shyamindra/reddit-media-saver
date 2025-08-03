@@ -3,16 +3,17 @@ import { contextBridge, ipcRenderer } from 'electron';
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('electronAPI', {
   // Reddit API operations
-  redditAuth: (...args: any[]) => ipcRenderer.invoke('reddit-auth', ...args),
-  downloadContent: (...args: any[]) =>
+  redditAuth: (...args: unknown[]) =>
+    ipcRenderer.invoke('reddit-auth', ...args),
+  downloadContent: (...args: unknown[]) =>
     ipcRenderer.invoke('download-content', ...args),
-  getSavedContent: (...args: any[]) =>
+  getSavedContent: (...args: unknown[]) =>
     ipcRenderer.invoke('get-saved-content', ...args),
 
   // File system operations
-  selectDirectory: (...args: any[]) =>
+  selectDirectory: (...args: unknown[]) =>
     ipcRenderer.invoke('select-directory', ...args),
-  saveFile: (...args: any[]) => ipcRenderer.invoke('save-file', ...args),
+  saveFile: (...args: unknown[]) => ipcRenderer.invoke('save-file', ...args),
 
   // App lifecycle
   onMainProcessMessage: (callback: (message: string) => void) => {
@@ -22,13 +23,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
 
   // Progress updates
-  onDownloadProgress: (callback: (progress: any) => void) => {
+  onDownloadProgress: (callback: (progress: unknown) => void) => {
     ipcRenderer.on('download-progress', (event, progress) =>
       callback(progress)
     );
   },
 
-  onAuthStatus: (callback: (status: any) => void) => {
+  onAuthStatus: (callback: (status: unknown) => void) => {
     ipcRenderer.on('auth-status', (event, status) => callback(status));
   },
 });
