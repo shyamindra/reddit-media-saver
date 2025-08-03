@@ -1,138 +1,296 @@
-// Reddit API Types
-export interface RedditPost {
+// Re-export all types from reddit.ts
+export type {
+  RedditPost,
+  RedditComment,
+  RedditApiResponse,
+  OAuthToken,
+  AuthConfig,
+  AuthState
+} from './reddit';
+
+// Database types
+export interface DatabaseConfig {
+  dbPath: string;
+  verbose?: boolean;
+}
+
+export interface DatabaseServiceConfig {
+  dbPath: string;
+  verbose?: boolean;
+}
+
+export interface ContentRecord {
   id: string;
+  type: 'post' | 'comment';
   title: string;
-  author: string;
   subreddit: string;
+  author: string;
   url: string;
   permalink: string;
   created_utc: number;
   score: number;
-  num_comments: number;
-  is_video: boolean;
-  media?: {
-    reddit_video?: {
-      fallback_url: string;
-    };
-  };
-  preview?: {
-    images: Array<{
-      source: {
-        url: string;
-        width: number;
-        height: number;
-      };
-    }>;
-  };
-  post_hint?: string;
-  domain: string;
+  num_comments?: number;
+  upvote_ratio?: number;
   selftext?: string;
+  body?: string;
+  domain?: string;
+  is_video: boolean;
+  saved_at: number;
+  created_at: number;
+  updated_at: number;
 }
 
-export interface RedditComment {
+export interface MediaRecord {
+  id: number;
+  content_id: string;
+  type: string;
+  url?: string;
+  thumbnail_url?: string;
+  local_path?: string;
+  file_size?: number;
+  mime_type?: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+  extension?: string;
+  downloaded_at?: number;
+  download_status: string;
+  error_message?: string;
+  created_at: number;
+}
+
+export interface SearchFilters {
+  subreddit?: string;
+  author?: string;
+  mediaType?: string;
+  dateFrom?: number;
+  dateTo?: number;
+  minScore?: number;
+  tags?: string[];
+}
+
+export interface SearchResult {
+  content: ContentRecord;
+  media: MediaRecord[];
+  tags: string[];
+  relevance: number;
+}
+
+// Storage types
+export interface StorageConfig {
+  basePath: string;
+  organizeBySubreddit?: boolean;
+  organizeByAuthor?: boolean;
+  createSubfolders?: boolean;
+  generateHtmlFiles?: boolean;
+  maxConcurrentDownloads?: number;
+  retryAttempts?: number;
+  retryDelay?: number;
+}
+
+export interface StorageStats {
+  totalFiles: number;
+  totalSize: number;
+  subreddits: number;
+  authors: number;
+  lastUpdated: number;
+}
+
+// Content types
+export interface ContentItem {
   id: string;
-  body: string;
-  author: string;
+  type: 'post' | 'comment';
+  title: string;
   subreddit: string;
-  link_id: string;
-  parent_id: string;
-  created_utc: number;
-  score: number;
+  author: string;
+  url: string;
   permalink: string;
-}
-
-export interface SavedContent {
-  kind: 't1' | 't3'; // t1 = comment, t3 = post
-  data: RedditPost | RedditComment;
-}
-
-// Authentication Types
-export interface AuthState {
-  isAuthenticated: boolean;
-  accessToken?: string;
-  refreshToken?: string;
-  expiresAt?: number;
-  user?: {
-    name: string;
-    id: string;
+  created_utc: number;
+  saved: boolean;
+  media?: {
+    type: 'image' | 'video' | 'gif' | 'text' | 'link';
+    url?: string;
+    thumbnail?: string;
+    preview?: any;
+  };
+  metadata: {
+    score: number;
+    num_comments?: number;
+    upvote_ratio?: number;
+    body?: string; // For comments
+    selftext?: string; // For text posts
   };
 }
 
-// Download Types
+export interface ContentFetchOptions {
+  limit?: number;
+  after?: string;
+  before?: string;
+  type?: 'posts' | 'comments' | 'all';
+}
+
+export interface ContentFetchResult {
+  items: ContentItem[];
+  pagination: {
+    after: string | null;
+    before: string | null;
+    hasMore: boolean;
+  };
+  totalFetched: number;
+}
+
 export interface DownloadProgress {
-  current: number;
-  total: number;
-  percentage: number;
-  currentItem?: string;
-  status: 'idle' | 'downloading' | 'completed' | 'error';
+  itemId: string;
+  status: 'pending' | 'downloading' | 'completed' | 'failed' | 'skipped';
+  progress: number; // 0-100
+  downloadedBytes?: number;
+  totalBytes?: number;
+  error?: string;
+  startTime?: number;
+  endTime?: number;
+}
+
+// Download types
+export interface DownloadOptions {
+  url: string;
+  outputPath: string;
+  filename?: string;
+  headers?: Record<string, string>;
+  timeout?: number;
+  retries?: number;
+  onProgress?: (progress: number) => void;
+}
+
+export interface DownloadResult {
+  success: boolean;
+  filePath?: string;
+  error?: string;
+  fileSize?: number;
+  downloadTime?: number;
+}
+
+// App types
+export interface AppConfig {
+  auth: AuthConfig;
+  storage: StorageConfig;
+}
+
+// Utility types
+export interface MediaInfo {
+  type: 'image' | 'video' | 'gif' | 'text' | 'link' | 'unknown';
+  extension: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  duration?: number;
+}
+
+export interface SimilarityResult {
+  similarity: number;
+  filename: string;
+}
+
+export interface FolderConfig {
+  basePath: string;
+  subreddit?: string;
+  author?: string;
+  createSubfolders?: boolean;
+}
+
+export interface FolderGroup {
+  name: string;
+  path: string;
+  count: number;
+  size: number;
+}
+
+export interface OrganizerConfig {
+  basePath: string;
+  groupBy: 'subreddit' | 'author' | 'date' | 'type';
+  createSubfolders: boolean;
+  maxDepth: number;
+}
+
+export interface LoggerConfig {
+  level: 'error' | 'warn' | 'info' | 'debug';
+  format: 'json' | 'simple';
+  output: 'console' | 'file' | 'both';
+  filePath?: string;
+}
+
+// Legacy types for backward compatibility
+export interface SavedContent {
+  id: string;
+  title: string;
+  subreddit: string;
+  author: string;
+  url: string;
+  permalink: string;
+  created_utc: number;
+  saved: boolean;
 }
 
 export interface DownloadItem {
   id: string;
-  type: 'post' | 'comment';
-  title: string;
-  subreddit: string;
   url: string;
-  status: 'pending' | 'downloading' | 'completed' | 'error';
+  filename: string;
+  status: 'pending' | 'downloading' | 'completed' | 'failed';
+  progress: number;
   error?: string;
-  localPath?: string;
-  metadata?: unknown;
+  startTime?: number;
+  endTime?: number;
 }
 
-// File System Types
 export interface ContentMetadata {
   id: string;
   type: 'post' | 'comment';
-  mediaType: 'image' | 'video' | 'note';
   title: string;
-  author: string;
   subreddit: string;
+  author: string;
   url: string;
   permalink: string;
   created_utc: number;
   score: number;
-  localPath: string;
+  num_comments?: number;
+  upvote_ratio?: number;
+  selftext?: string;
+  body?: string;
+  domain?: string;
+  is_video: boolean;
+  mediaType: 'image' | 'video' | 'gif' | 'text' | 'link';
   mediaFiles: string[];
-  folderPath: string;
-  category?: string; // For notes categorization
   downloadedAt: number;
+  tags: string[];
 }
 
 export interface FolderStructure {
-  images: {
-    [subfolder: string]: string[]; // filename -> filepath mapping
-  };
-  videos: {
-    [subfolder: string]: string[]; // filename -> filepath mapping
-  };
-  notes: {
-    [category: string]: string[]; // category -> filepath mapping
-  };
+  name: string;
+  path: string;
+  type: 'folder' | 'file';
+  size?: number;
+  children?: FolderStructure[];
 }
 
-// App State Types
 export interface AppState {
-  auth: AuthState;
-  downloads: {
-    progress: DownloadProgress;
-    items: DownloadItem[];
-  };
-  settings: {
-    downloadPath: string;
-    organizeBySubreddit: boolean;
-    downloadMedia: boolean;
-    maxConcurrentDownloads: number;
-  };
+  isAuthenticated: boolean;
+  user: any | null;
+  currentView: 'auth' | 'content' | 'downloads' | 'settings';
+  contentItems: ContentItem[];
+  downloadQueue: DownloadItem[];
+  isLoading: boolean;
+  error: string | null;
 }
 
-// Electron API Types
 export interface ElectronAPI {
-  redditAuth: (...args: unknown[]) => Promise<unknown>;
-  downloadContent: (...args: unknown[]) => Promise<unknown>;
-  getSavedContent: (...args: unknown[]) => Promise<unknown>;
-  selectDirectory: (...args: unknown[]) => Promise<unknown>;
-  saveFile: (...args: unknown[]) => Promise<unknown>;
-  onMainProcessMessage: (callback: (message: string) => void) => void;
-  onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
-  onAuthStatus: (callback: (status: AuthState) => void) => void;
+  platform: string;
+  versions: {
+    node: string;
+    chrome: string;
+    electron: string;
+  };
+  ipcRenderer: {
+    send: (channel: string, data: any) => void;
+    on: (channel: string, func: (...args: any[]) => void) => void;
+    once: (channel: string, func: (...args: any[]) => void) => void;
+  };
 }

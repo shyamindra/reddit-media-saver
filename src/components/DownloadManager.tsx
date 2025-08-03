@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { ContentItem, DownloadProgress } from '../services/contentService';
+import type { ContentItem, DownloadProgress } from '../types';
 import { downloadService } from '../services/downloadService';
 
 interface DownloadManagerProps {

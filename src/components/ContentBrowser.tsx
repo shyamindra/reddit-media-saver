@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { ContentItem } from '../services/contentService';
+import type { ContentItem } from '../types';
 import { MediaUtils } from '../utils/mediaUtils';
 import { databaseManager } from '../services/databaseService';
 import type { SearchFilters, SearchResult } from '../database';

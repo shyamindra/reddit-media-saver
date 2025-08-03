@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { promises as fs } from 'fs';
 import path from 'path';
-import type { ContentItem, DownloadProgress } from './contentService';
+import type { ContentItem, DownloadProgress } from '../types';
 import { MediaUtils } from '../utils/mediaUtils';
 
 export interface DownloadOptions {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { AppConfig } from './App';
-import { StorageConfig } from '../services/storageService';
+import type { StorageConfig } from '../types';
 import { MediaUtils } from '../utils/mediaUtils';
 
 interface SettingsPanelProps {

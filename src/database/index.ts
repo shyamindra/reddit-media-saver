@@ -12,70 +12,8 @@ if (!isBrowser) {
   path = require('path');
 }
 
-import type { ContentItem } from '../services/contentService';
-import type { ContentMetadata } from '../types';
-
-export interface DatabaseConfig {
-  dbPath: string;
-  verbose?: boolean;
-}
-
-export interface ContentRecord {
-  id: string;
-  type: 'post' | 'comment';
-  title: string;
-  subreddit: string;
-  author: string;
-  url: string;
-  permalink: string;
-  created_utc: number;
-  score: number;
-  num_comments?: number;
-  upvote_ratio?: number;
-  selftext?: string;
-  body?: string;
-  domain?: string;
-  is_video: boolean;
-  saved_at: number;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface MediaRecord {
-  id: number;
-  content_id: string;
-  type: string;
-  url?: string;
-  thumbnail_url?: string;
-  local_path?: string;
-  file_size?: number;
-  mime_type?: string;
-  width?: number;
-  height?: number;
-  duration?: number;
-  extension?: string;
-  downloaded_at?: number;
-  download_status: string;
-  error_message?: string;
-  created_at: number;
-}
-
-export interface SearchFilters {
-  subreddit?: string;
-  author?: string;
-  mediaType?: string;
-  dateFrom?: number;
-  dateTo?: number;
-  minScore?: number;
-  tags?: string[];
-}
-
-export interface SearchResult {
-  content: ContentRecord;
-  media: MediaRecord[];
-  tags: string[];
-  relevance: number;
-}
+import type { ContentItem } from '../types';
+import type { ContentMetadata, DatabaseConfig, ContentRecord, MediaRecord, SearchFilters, SearchResult } from '../types';
 
 export class DatabaseService {
   private db: any;
@@ -607,4 +545,7 @@ export class DatabaseService {
     const result = stmt.get() as any;
     return result.size;
   }
-} 
+}
+
+// Re-export types for backward compatibility
+export type { DatabaseConfig, ContentRecord, MediaRecord, SearchFilters, SearchResult } from '../types'; 

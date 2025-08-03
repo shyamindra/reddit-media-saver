@@ -8,11 +8,12 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { authService } from '../services/authService';
 import type { AuthConfig } from '../types/reddit';
 import { contentService } from '../services/contentService';
-import { StorageService, StorageConfig } from '../services/storageService';
+import { StorageService } from '../services/storageService';
+import type { StorageConfig } from '../types';
 import { databaseManager } from '../services/databaseService';
 import { logger } from '../utils/logger';
 import type { AuthState } from '../types/reddit';
-import type { ContentItem } from '../services/contentService';
+import type { ContentItem } from '../types';
 
 export interface AppConfig {
   auth: AuthConfig;

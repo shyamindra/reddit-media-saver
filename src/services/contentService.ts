@@ -1,59 +1,7 @@
 import { redditApi } from './redditApi';
 import type { RedditPost, RedditComment, RedditApiResponse } from '../types/reddit';
+import type { ContentItem, ContentFetchOptions, ContentFetchResult, DownloadProgress } from '../types';
 import { authService } from './authService';
-
-export interface ContentItem {
-  id: string;
-  type: 'post' | 'comment';
-  title: string;
-  subreddit: string;
-  author: string;
-  url: string;
-  permalink: string;
-  created_utc: number;
-  saved: boolean;
-  media?: {
-    type: 'image' | 'video' | 'gif' | 'text' | 'link';
-    url?: string;
-    thumbnail?: string;
-    preview?: any;
-  };
-  metadata: {
-    score: number;
-    num_comments?: number;
-    upvote_ratio?: number;
-    body?: string; // For comments
-    selftext?: string; // For text posts
-  };
-}
-
-export interface ContentFetchOptions {
-  limit?: number;
-  after?: string;
-  before?: string;
-  type?: 'posts' | 'comments' | 'all';
-}
-
-export interface ContentFetchResult {
-  items: ContentItem[];
-  pagination: {
-    after: string | null;
-    before: string | null;
-    hasMore: boolean;
-  };
-  totalFetched: number;
-}
-
-export interface DownloadProgress {
-  itemId: string;
-  status: 'pending' | 'downloading' | 'completed' | 'failed' | 'skipped';
-  progress: number; // 0-100
-  downloadedBytes?: number;
-  totalBytes?: number;
-  error?: string;
-  startTime?: number;
-  endTime?: number;
-}
 
 export class ContentService {
   private downloadQueue: Map<string, DownloadProgress> = new Map();
@@ -422,6 +370,9 @@ export class ContentService {
     return authService.getUser();
   }
 }
+
+// Re-export types for backward compatibility
+export type { ContentItem, ContentFetchOptions, ContentFetchResult, DownloadProgress } from '../types';
 
 // Export singleton instance
 export const contentService = new ContentService(); 

@@ -10,30 +10,12 @@ if (!isBrowser) {
   path = require('path');
 }
 
-import type { ContentMetadata } from '../types';
-import type { ContentItem } from './contentService';
+import type { ContentMetadata, StorageConfig, StorageStats } from '../types';
+import type { ContentItem } from '../types';
 import { FileUtils } from '../utils/fileUtils';
 import { MediaUtils } from '../utils/mediaUtils';
 import { FolderOrganizer } from '../utils/folderOrganizer';
 import { FilenameSimilarity } from '../utils/filenameSimilarity';
-
-export interface StorageConfig {
-  basePath: string;
-  organizeBySubreddit: boolean;
-  organizeByAuthor: boolean;
-  createSubfolders: boolean;
-  generateHtmlFiles: boolean;
-  customStorageLocation?: string;
-}
-
-export interface StorageStats {
-  totalItems: number;
-  imagesCount: number;
-  videosCount: number;
-  notesCount: number;
-  totalSize: number;
-  lastUpdated: number;
-}
 
 export class StorageService {
   private fileUtils: FileUtils;
@@ -386,4 +368,7 @@ export class StorageService {
       await this.fileUtils.writeMetadata(item);
     }
   }
-} 
+}
+
+// Re-export types for backward compatibility
+export type { StorageConfig, StorageStats } from '../types'; 

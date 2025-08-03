@@ -1,8 +1,9 @@
-import { DatabaseService, DatabaseConfig, SearchFilters, SearchResult } from '../database';
+import { DatabaseService } from '../database';
+import type { DatabaseConfig, SearchFilters, SearchResult } from '../types';
 import { contentService } from './contentService';
 import { StorageService } from './storageService';
 import { downloadService } from './downloadService';
-import type { ContentItem } from './contentService';
+import type { ContentItem } from '../types';
 import type { ContentMetadata } from '../types';
 import { MediaUtils } from '../utils/mediaUtils';
 
