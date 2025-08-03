@@ -1,4 +1,5 @@
-import { redditApi, RedditPost, RedditComment, RedditApiResponse } from './redditApi';
+import { redditApi } from './redditApi';
+import type { RedditPost, RedditComment, RedditApiResponse } from '../types/reddit';
 import { authService } from './authService';
 
 export interface ContentItem {

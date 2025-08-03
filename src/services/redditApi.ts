@@ -1,5 +1,6 @@
 import axios from 'axios';
 import type { AxiosInstance, AxiosResponse } from 'axios';
+import type { RedditPost, RedditComment, RedditApiResponse, OAuthToken } from '../types/reddit';
 
 // Reddit API Configuration
 const REDDIT_API_BASE = 'https://oauth.reddit.com';
@@ -9,85 +10,6 @@ const REDDIT_OAUTH_BASE = 'https://www.reddit.com/api/v1';
 // Reddit API Rate Limits
 const RATE_LIMIT_REQUESTS = 60; // requests per window
 const RATE_LIMIT_WINDOW = 60; // seconds
-
-export interface RedditPost {
-  id: string;
-  title: string;
-  subreddit: string;
-  author: string;
-  url: string;
-  permalink: string;
-  created_utc: number;
-  saved: boolean;
-  is_video: boolean;
-  is_self: boolean;
-  selftext?: string;
-  media?: {
-    reddit_video?: {
-      fallback_url: string;
-    };
-  };
-  preview?: {
-    images: Array<{
-      source: {
-        url: string;
-        width: number;
-        height: number;
-      };
-      resolutions: Array<{
-        url: string;
-        width: number;
-        height: number;
-      }>;
-    }>;
-  };
-  secure_media?: {
-    reddit_video?: {
-      fallback_url: string;
-    };
-  };
-  post_hint?: string;
-  domain: string;
-  thumbnail: string;
-  num_comments: number;
-  score: number;
-  upvote_ratio: number;
-}
-
-export interface RedditComment {
-  id: string;
-  body: string;
-  subreddit: string;
-  author: string;
-  permalink: string;
-  created_utc: number;
-  saved: boolean;
-  link_title: string;
-  link_url: string;
-  link_id: string;
-  parent_id: string;
-  score: number;
-}
-
-export interface RedditApiResponse<T> {
-  data: {
-    children: Array<{
-      data: T;
-      kind: string;
-    }>;
-    after: string | null;
-    before: string | null;
-  };
-}
-
-export interface OAuthToken {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  expires_at: number;
-}
 
 export class RedditApiService {
   private api: AxiosInstance;
@@ -382,6 +304,9 @@ export class RedditApiService {
     };
   }
 }
+
+// Re-export types for backward compatibility
+export type { RedditPost, RedditComment, RedditApiResponse, OAuthToken } from '../types/reddit';
 
 // Export singleton instance
 export const redditApi = new RedditApiService(); 

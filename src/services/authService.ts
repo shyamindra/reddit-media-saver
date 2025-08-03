@@ -1,4 +1,5 @@
-import { redditApi, OAuthToken } from './redditApi';
+import { redditApi } from './redditApi';
+import type { OAuthToken } from '../types/reddit';
 
 export interface AuthConfig {
   clientId: string;
