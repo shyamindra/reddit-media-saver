@@ -87,14 +87,14 @@
   - [x] 5.6 Add keyboard navigation and accessibility features
   - [x] 5.7 Create error message display and recovery UI
 
-- [ ] 6.0 Search and Content Management
-  - [ ] 6.1 Set up SQLite database with proper schema
-  - [ ] 6.2 Implement content indexing and metadata storage
-  - [ ] 6.3 Create search functionality with filters (subreddit, date, type)
-  - [ ] 6.4 Implement content preview and thumbnail generation
-  - [ ] 6.5 Add content statistics and organization overview
-  - [ ] 6.6 Create incremental update detection for new saves
-  - [ ] 6.7 Implement content export and backup functionality
+- [x] 6.0 Search and Content Management
+  - [x] 6.1 Set up SQLite database with proper schema
+  - [x] 6.2 Implement content indexing and metadata storage
+  - [x] 6.3 Create search functionality with filters (subreddit, date, type)
+  - [x] 6.4 Implement content preview and thumbnail generation
+  - [x] 6.5 Add content statistics and organization overview
+  - [x] 6.6 Create incremental update detection for new saves
+  - [x] 6.7 Implement content export and backup functionality
 
 - [ ] 7.0 Testing, Error Handling, and Polish
   - [ ] 7.1 Write unit tests for all services and utilities

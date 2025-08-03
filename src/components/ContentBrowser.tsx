@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { ContentItem } from '../services/contentService';
 import { MediaUtils } from '../utils/mediaUtils';
+import { databaseManager } from '../services/databaseService';
+import type { SearchFilters, SearchResult } from '../database';
 
 interface ContentBrowserProps {
   items: ContentItem[];
@@ -12,6 +14,10 @@ interface FilterState {
   subreddit: string;
   mediaType: string;
   author: string;
+  dateFrom: string;
+  dateTo: string;
+  minScore: string;
+  tags: string[];
 }
 
 export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloadRequest }) => {
@@ -19,54 +25,102 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
     search: '',
     subreddit: '',
     mediaType: '',
-    author: ''
+    author: '',
+    dateFrom: '',
+    dateTo: '',
+    minScore: '',
+    tags: []
   });
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [totalResults, setTotalResults] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [availableTags, setAvailableTags] = useState<Array<{ id: number; name: string; color: string }>>([]);
+  const [searchHistory, setSearchHistory] = useState<Array<{ query: string; filters: any; results_count: number; searched_at: number }>>([]);
 
-  // Get unique values for filter dropdowns
-  const subreddits = useMemo(() => 
-    [...new Set(items.map(item => item.subreddit))].sort(), 
-    [items]
-  );
-  
-  const authors = useMemo(() => 
-    [...new Set(items.map(item => item.author))].sort(), 
-    [items]
-  );
+  const ITEMS_PER_PAGE = 20;
 
-  const mediaTypes = useMemo(() => 
-    [...new Set(items.map(item => item.media?.type).filter(Boolean))].sort(), 
-    [items]
-  );
+  // Load available tags and search history on mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const tags = databaseManager.getAllTags();
+        setAvailableTags(tags);
+        
+        const history = databaseManager.getSearchHistory(5);
+        setSearchHistory(history);
+      } catch (error) {
+        console.error('Failed to load tags and history:', error);
+      }
+    };
+    
+    loadData();
+  }, []);
 
-  // Filter items based on current filters
-  const filteredItems = useMemo(() => {
-    return items.filter(item => {
-      const searchText = `${item.title} ${item.subreddit} ${item.author}`.toLowerCase();
-      
-      if (filters.search && !searchText.includes(filters.search.toLowerCase())) {
-        return false;
-      }
-      
-      if (filters.subreddit && item.subreddit !== filters.subreddit) {
-        return false;
-      }
-      
-      if (filters.mediaType && item.media?.type !== filters.mediaType) {
-        return false;
-      }
-      
-      if (filters.author && item.author !== filters.author) {
-        return false;
-      }
-      
-      return true;
-    });
-  }, [items, filters]);
+  // Perform search when filters change
+  useEffect(() => {
+    const performSearch = async () => {
+      setIsSearching(true);
+      try {
+        const searchFilters: SearchFilters = {};
+        
+        if (filters.subreddit) searchFilters.subreddit = filters.subreddit;
+        if (filters.author) searchFilters.author = filters.author;
+        if (filters.mediaType) searchFilters.mediaType = filters.mediaType;
+        if (filters.dateFrom) searchFilters.dateFrom = new Date(filters.dateFrom).getTime() / 1000;
+        if (filters.dateTo) searchFilters.dateTo = new Date(filters.dateTo).getTime() / 1000;
+        if (filters.minScore) searchFilters.minScore = parseInt(filters.minScore);
+        if (filters.tags.length > 0) searchFilters.tags = filters.tags;
 
-  const handleFilterChange = (key: keyof FilterState, value: string) => {
+        const result = await databaseManager.searchContent(
+          filters.search,
+          searchFilters,
+          ITEMS_PER_PAGE,
+          currentPage * ITEMS_PER_PAGE
+        );
+
+        setSearchResults(result.results);
+        setTotalResults(result.total);
+      } catch (error) {
+        console.error('Search failed:', error);
+        setSearchResults([]);
+        setTotalResults(0);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Debounce search
+    const timeoutId = setTimeout(performSearch, 300);
+    return () => clearTimeout(timeoutId);
+  }, [filters, currentPage]);
+
+  // Get unique values for filter dropdowns from database
+  const getUniqueValues = async (field: 'subreddit' | 'author' | 'mediaType') => {
+    try {
+      const allResults = await databaseManager.searchContent('', {}, 1000, 0);
+      const values = new Set<string>();
+      
+      allResults.results.forEach(result => {
+        if (field === 'subreddit') values.add(result.content.subreddit);
+        if (field === 'author') values.add(result.content.author);
+        if (field === 'mediaType') {
+          result.media.forEach(m => values.add(m.type));
+        }
+      });
+      
+      return Array.from(values).sort();
+    } catch (error) {
+      console.error(`Failed to get unique ${field} values:`, error);
+      return [];
+    }
+  };
+
+  const handleFilterChange = (key: keyof FilterState, value: any) => {
     setFilters(prev => ({ ...prev, [key]: value }));
+    setCurrentPage(0); // Reset to first page when filters change
   };
 
   const handleSelectItem = (itemId: string) => {
@@ -82,16 +136,86 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
   };
 
   const handleSelectAll = () => {
-    if (selectedItems.size === filteredItems.length) {
+    if (selectedItems.size === searchResults.length) {
       setSelectedItems(new Set());
     } else {
-      setSelectedItems(new Set(filteredItems.map(item => item.id)));
+      setSelectedItems(new Set(searchResults.map(item => item.content.id)));
     }
   };
 
   const handleDownloadSelected = () => {
-    const selectedContentItems = filteredItems.filter(item => selectedItems.has(item.id));
+    const selectedContentItems = searchResults
+      .filter(item => selectedItems.has(item.content.id))
+      .map(item => ({
+        id: item.content.id,
+        type: item.content.type,
+        title: item.content.title,
+        subreddit: item.content.subreddit,
+        author: item.content.author,
+        url: item.content.url,
+        permalink: item.content.permalink,
+        created_utc: item.content.created_utc,
+        saved: true,
+        media: item.media[0] ? {
+          type: item.media[0].type as any,
+          url: item.media[0].url
+        } : undefined,
+        metadata: {
+          score: item.content.score,
+          num_comments: item.content.num_comments || 0,
+          upvote_ratio: item.content.upvote_ratio || 0
+        }
+      } as ContentItem));
+    
     onDownloadRequest?.(selectedContentItems);
+  };
+
+  const handleAddTag = async (contentId: string, tagName: string) => {
+    try {
+      databaseManager.addTagToContent(contentId, tagName);
+      // Refresh search results to show updated tags
+      const result = await databaseManager.searchContent(
+        filters.search,
+        {
+          subreddit: filters.subreddit || undefined,
+          author: filters.author || undefined,
+          mediaType: filters.mediaType || undefined,
+          dateFrom: filters.dateFrom ? new Date(filters.dateFrom).getTime() / 1000 : undefined,
+          dateTo: filters.dateTo ? new Date(filters.dateTo).getTime() / 1000 : undefined,
+          minScore: filters.minScore ? parseInt(filters.minScore) : undefined,
+          tags: filters.tags.length > 0 ? filters.tags : undefined
+        },
+        ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+      );
+      setSearchResults(result.results);
+    } catch (error) {
+      console.error('Failed to add tag:', error);
+    }
+  };
+
+  const handleRemoveTag = async (contentId: string, tagName: string) => {
+    try {
+      databaseManager.removeTagFromContent(contentId, tagName);
+      // Refresh search results to show updated tags
+      const result = await databaseManager.searchContent(
+        filters.search,
+        {
+          subreddit: filters.subreddit || undefined,
+          author: filters.author || undefined,
+          mediaType: filters.mediaType || undefined,
+          dateFrom: filters.dateFrom ? new Date(filters.dateFrom).getTime() / 1000 : undefined,
+          dateTo: filters.dateTo ? new Date(filters.dateTo).getTime() / 1000 : undefined,
+          minScore: filters.minScore ? parseInt(filters.minScore) : undefined,
+          tags: filters.tags.length > 0 ? filters.tags : undefined
+        },
+        ITEMS_PER_PAGE,
+        currentPage * ITEMS_PER_PAGE
+      );
+      setSearchResults(result.results);
+    } catch (error) {
+      console.error('Failed to remove tag:', error);
+    }
   };
 
   const getMediaIcon = (mediaType?: string) => {
@@ -119,6 +243,8 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
   };
 
+  const totalPages = Math.ceil(totalResults / ITEMS_PER_PAGE);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -126,7 +252,7 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Saved Content</h1>
           <p className="text-gray-600">
-            {filteredItems.length} of {items.length} items
+            {isSearching ? 'Searching...' : `${totalResults} total items`}
           </p>
         </div>
         <div className="flex space-x-2">
@@ -153,9 +279,11 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-lg shadow-sm border">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Advanced Filters */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <h2 className="text-lg font-medium text-gray-900 mb-4">Search & Filters</h2>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Search
@@ -164,7 +292,7 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
               type="text"
               value={filters.search}
               onChange={(e) => handleFilterChange('search', e.target.value)}
-              placeholder="Search titles, subreddits, authors..."
+              placeholder="Search titles, content, subreddits..."
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -173,18 +301,26 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Subreddit
             </label>
-            <select
+            <input
+              type="text"
               value={filters.subreddit}
               onChange={(e) => handleFilterChange('subreddit', e.target.value)}
+              placeholder="Enter subreddit name"
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">All Subreddits</option>
-              {subreddits.map(subreddit => (
-                <option key={subreddit} value={subreddit}>
-                  r/{subreddit}
-                </option>
-              ))}
-            </select>
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Author
+            </label>
+            <input
+              type="text"
+              value={filters.author}
+              onChange={(e) => handleFilterChange('author', e.target.value)}
+              placeholder="Enter author username"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
           
           <div>
@@ -197,32 +333,96 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">All Types</option>
-              {mediaTypes.map(type => (
-                <option key={type} value={type}>
-                  {type.charAt(0).toUpperCase() + type.slice(1)}
-                </option>
-              ))}
+              <option value="image">Images</option>
+              <option value="video">Videos</option>
+              <option value="gif">GIFs</option>
+              <option value="text">Text</option>
+              <option value="link">Links</option>
             </select>
           </div>
           
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Author
+              Date From
+            </label>
+            <input
+              type="date"
+              value={filters.dateFrom}
+              onChange={(e) => handleFilterChange('dateFrom', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Date To
+            </label>
+            <input
+              type="date"
+              value={filters.dateTo}
+              onChange={(e) => handleFilterChange('dateTo', e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Min Score
+            </label>
+            <input
+              type="number"
+              value={filters.minScore}
+              onChange={(e) => handleFilterChange('minScore', e.target.value)}
+              placeholder="Minimum score"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Tags
             </label>
             <select
-              value={filters.author}
-              onChange={(e) => handleFilterChange('author', e.target.value)}
+              multiple
+              value={filters.tags}
+              onChange={(e) => {
+                const selected = Array.from(e.target.selectedOptions, option => option.value);
+                handleFilterChange('tags', selected);
+              }}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">All Authors</option>
-              {authors.map(author => (
-                <option key={author} value={author}>
-                  u/{author}
+              {availableTags.map(tag => (
+                <option key={tag.id} value={tag.name}>
+                  {tag.name}
                 </option>
               ))}
             </select>
           </div>
         </div>
+
+        {/* Search History */}
+        {searchHistory.length > 0 && (
+          <div className="mt-4">
+            <h3 className="text-sm font-medium text-gray-700 mb-2">Recent Searches</h3>
+            <div className="flex flex-wrap gap-2">
+              {searchHistory.map((item, index) => (
+                <button
+                  key={index}
+                  onClick={() => {
+                    handleFilterChange('search', item.query);
+                    // Apply saved filters if available
+                    if (item.filters) {
+                      setFilters(prev => ({ ...prev, ...item.filters }));
+                    }
+                  }}
+                  className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-sm hover:bg-gray-200"
+                >
+                  {item.query || 'No query'} ({item.results_count} results)
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Actions */}
@@ -243,14 +443,23 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
       )}
 
       {/* Content Grid/List */}
-      {viewMode === 'grid' ? (
+      {isSearching ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Searching...</p>
+          </div>
+        </div>
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredItems.map(item => (
+          {searchResults.map(item => (
             <ContentCard
-              key={item.id}
+              key={item.content.id}
               item={item}
-              isSelected={selectedItems.has(item.id)}
-              onSelect={() => handleSelectItem(item.id)}
+              isSelected={selectedItems.has(item.content.id)}
+              onSelect={() => handleSelectItem(item.content.id)}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
               getMediaIcon={getMediaIcon}
               formatDate={formatDate}
               truncateText={truncateText}
@@ -259,12 +468,14 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
         </div>
       ) : (
         <div className="space-y-2">
-          {filteredItems.map(item => (
+          {searchResults.map(item => (
             <ContentListItem
-              key={item.id}
+              key={item.content.id}
               item={item}
-              isSelected={selectedItems.has(item.id)}
-              onSelect={() => handleSelectItem(item.id)}
+              isSelected={selectedItems.has(item.content.id)}
+              onSelect={() => handleSelectItem(item.content.id)}
+              onAddTag={handleAddTag}
+              onRemoveTag={handleRemoveTag}
               getMediaIcon={getMediaIcon}
               formatDate={formatDate}
               truncateText={truncateText}
@@ -273,7 +484,32 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
         </div>
       )}
 
-      {filteredItems.length === 0 && (
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center space-x-2">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+            disabled={currentPage === 0}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          
+          <span className="text-sm text-gray-600">
+            Page {currentPage + 1} of {totalPages}
+          </span>
+          
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+            disabled={currentPage === totalPages - 1}
+            className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      )}
+
+      {searchResults.length === 0 && !isSearching && (
         <div className="text-center py-12">
           <div className="text-gray-400 text-6xl mb-4">📭</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">No content found</h3>
@@ -287,9 +523,11 @@ export const ContentBrowser: React.FC<ContentBrowserProps> = ({ items, onDownloa
 };
 
 interface ContentCardProps {
-  item: ContentItem;
+  item: SearchResult;
   isSelected: boolean;
   onSelect: () => void;
+  onAddTag: (contentId: string, tagName: string) => void;
+  onRemoveTag: (contentId: string, tagName: string) => void;
   getMediaIcon: (type?: string) => string;
   formatDate: (timestamp: number) => string;
   truncateText: (text: string, maxLength: number) => string;
@@ -299,10 +537,23 @@ const ContentCard: React.FC<ContentCardProps> = ({
   item,
   isSelected,
   onSelect,
+  onAddTag,
+  onRemoveTag,
   getMediaIcon,
   formatDate,
   truncateText
 }) => {
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [newTag, setNewTag] = useState('');
+
+  const handleAddTag = () => {
+    if (newTag.trim()) {
+      onAddTag(item.content.id, newTag.trim());
+      setNewTag('');
+      setShowTagInput(false);
+    }
+  };
+
   return (
     <div
       className={`bg-white rounded-lg shadow-sm border-2 cursor-pointer transition-all ${
@@ -312,7 +563,7 @@ const ContentCard: React.FC<ContentCardProps> = ({
     >
       <div className="p-4">
         <div className="flex items-start justify-between mb-2">
-          <span className="text-2xl">{getMediaIcon(item.media?.type)}</span>
+          <span className="text-2xl">{getMediaIcon(item.media[0]?.type)}</span>
           <input
             type="checkbox"
             checked={isSelected}
@@ -323,19 +574,78 @@ const ContentCard: React.FC<ContentCardProps> = ({
         </div>
         
         <h3 className="font-medium text-gray-900 mb-2 line-clamp-2">
-          {truncateText(item.title, 80)}
+          {truncateText(item.content.title, 80)}
         </h3>
         
         <div className="space-y-1 text-sm text-gray-600">
           <div className="flex items-center">
-            <span className="font-medium">r/{item.subreddit}</span>
+            <span className="font-medium">r/{item.content.subreddit}</span>
             <span className="mx-2">•</span>
-            <span>u/{item.author}</span>
+            <span>u/{item.content.author}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span>{formatDate(item.created_utc)}</span>
-            <span>Score: {item.metadata.score}</span>
+            <span>{formatDate(item.content.created_utc)}</span>
+            <span>Score: {item.content.score}</span>
           </div>
+        </div>
+
+        {/* Tags */}
+        <div className="mt-3">
+          <div className="flex flex-wrap gap-1 mb-2">
+            {item.tags.map(tag => (
+              <span
+                key={tag}
+                className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center"
+              >
+                {tag}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveTag(item.content.id, tag);
+                  }}
+                  className="ml-1 text-blue-500 hover:text-blue-700"
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </div>
+          
+          {showTagInput ? (
+            <div className="flex space-x-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={newTag}
+                onChange={(e) => setNewTag(e.target.value)}
+                placeholder="Tag name"
+                className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded"
+                onKeyPress={(e) => e.key === 'Enter' && handleAddTag()}
+                autoFocus
+              />
+              <button
+                onClick={handleAddTag}
+                className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700"
+              >
+                Add
+              </button>
+              <button
+                onClick={() => setShowTagInput(false)}
+                className="px-2 py-1 bg-gray-300 text-gray-700 text-xs rounded hover:bg-gray-400"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowTagInput(true);
+              }}
+              className="text-xs text-blue-600 hover:text-blue-700"
+            >
+              + Add tag
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -343,9 +653,11 @@ const ContentCard: React.FC<ContentCardProps> = ({
 };
 
 interface ContentListItemProps {
-  item: ContentItem;
+  item: SearchResult;
   isSelected: boolean;
   onSelect: () => void;
+  onAddTag: (contentId: string, tagName: string) => void;
+  onRemoveTag: (contentId: string, tagName: string) => void;
   getMediaIcon: (type?: string) => string;
   formatDate: (timestamp: number) => string;
   truncateText: (text: string, maxLength: number) => string;
@@ -355,6 +667,8 @@ const ContentListItem: React.FC<ContentListItemProps> = ({
   item,
   isSelected,
   onSelect,
+  onAddTag,
+  onRemoveTag,
   getMediaIcon,
   formatDate,
   truncateText
@@ -376,17 +690,38 @@ const ContentListItem: React.FC<ContentListItemProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
           
-          <span className="text-xl">{getMediaIcon(item.media?.type)}</span>
+          <span className="text-xl">{getMediaIcon(item.media[0]?.type)}</span>
           
           <div className="flex-1 min-w-0">
             <h3 className="font-medium text-gray-900 mb-1">
-              {truncateText(item.title, 120)}
+              {truncateText(item.content.title, 120)}
             </h3>
             <div className="flex items-center space-x-4 text-sm text-gray-600">
-              <span>r/{item.subreddit}</span>
-              <span>u/{item.author}</span>
-              <span>{formatDate(item.created_utc)}</span>
-              <span>Score: {item.metadata.score}</span>
+              <span>r/{item.content.subreddit}</span>
+              <span>u/{item.content.author}</span>
+              <span>{formatDate(item.content.created_utc)}</span>
+              <span>Score: {item.content.score}</span>
+            </div>
+            
+            {/* Tags */}
+            <div className="flex flex-wrap gap-1 mt-2">
+              {item.tags.map(tag => (
+                <span
+                  key={tag}
+                  className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full flex items-center"
+                >
+                  {tag}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onRemoveTag(item.content.id, tag);
+                    }}
+                    className="ml-1 text-blue-500 hover:text-blue-700"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
             </div>
           </div>
         </div>

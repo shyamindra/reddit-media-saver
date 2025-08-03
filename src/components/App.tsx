@@ -6,6 +6,7 @@ import { SettingsPanel } from './SettingsPanel';
 import { authService, AuthConfig } from '../services/authService';
 import { contentService } from '../services/contentService';
 import { storageService, StorageConfig } from '../services/storageService';
+import { databaseManager } from '../services/databaseService';
 import type { ContentItem, AuthState } from '../types';
 
 export interface AppConfig {
@@ -33,6 +34,12 @@ export const App: React.FC<AppProps> = ({ config }) => {
     const storage = new storageService(config.storage);
     storage.initialize();
 
+    // Initialize database
+    databaseManager.initialize().catch(error => {
+      console.error('Failed to initialize database:', error);
+      setError('Failed to initialize database');
+    });
+
     // Subscribe to auth state changes
     const unsubscribe = authService.subscribe((state) => {
       setAuthState(state);
@@ -52,6 +59,11 @@ export const App: React.FC<AppProps> = ({ config }) => {
       // Fetch saved content
       const result = await contentService.fetchAllSavedContent(user.name, { limit: 50 });
       setContentItems(result.items);
+      
+      // Save content to database
+      for (const item of result.items) {
+        await databaseManager.saveContent(item);
+      }
       
       setCurrentView('content');
     } catch (err) {
