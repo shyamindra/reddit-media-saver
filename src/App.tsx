@@ -59,6 +59,9 @@ function App() {
 
   // Check if this is the auth callback route
   if (window.location.pathname === '/auth/callback') {
+    console.log('🔄 Main app detected auth callback route');
+    console.log('📍 Current URL:', window.location.href);
+    console.log('🔍 Window opener:', window.opener ? 'exists' : 'none');
     return <AuthCallback />;
   }
 

@@ -5,7 +5,7 @@ import type { RedditPost, RedditComment, RedditApiResponse, OAuthToken } from '.
 // Reddit API Configuration
 const REDDIT_API_BASE = import.meta.env.DEV ? '/api/reddit' : 'https://oauth.reddit.com';
 const REDDIT_WWW_BASE = 'https://www.reddit.com';
-const REDDIT_OAUTH_BASE = import.meta.env.DEV ? '/api/oauth' : 'https://www.reddit.com/api/v1';
+const REDDIT_OAUTH_BASE = 'https://www.reddit.com/api/v1';
 
 // Reddit API Rate Limits
 const RATE_LIMIT_REQUESTS = 60; // requests per window
@@ -42,7 +42,7 @@ export class RedditApiService {
 
     // OAuth API client for authentication
     this.oauthApi = axios.create({
-      baseURL: REDDIT_OAUTH_BASE,
+      baseURL: REDDIT_OAUTH_BASE, // Always use direct Reddit OAuth endpoint
       timeout: 30000,
       headers: {
         'User-Agent': 'RedditSaverApp/1.0.0 (by /u/your_username)',
@@ -135,7 +135,15 @@ export class RedditApiService {
       scope: scope,
     });
 
-    return `${REDDIT_OAUTH_BASE}/authorize?${params.toString()}`;
+    const authUrl = `${REDDIT_OAUTH_BASE}/authorize?${params.toString()}`;
+    console.log('🔧 Generated OAuth URL:', {
+      base: REDDIT_OAUTH_BASE,
+      clientId: clientId,
+      redirectUri: redirectUri,
+      scope: scope,
+      fullUrl: authUrl
+    });
+    return authUrl;
   }
 
   /**
@@ -153,17 +161,32 @@ export class RedditApiService {
       redirect_uri: redirectUri,
     });
 
-    const response = await this.oauthApi.post('/access_token', params, {
-      auth: {
-        username: clientId,
-        password: clientSecret,
-      },
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
+    console.log('🔑 Token exchange request:', {
+      url: '/access_token',
+      fullUrl: this.oauthApi.defaults.baseURL + '/access_token',
+      params: Object.fromEntries(params.entries()),
+      redirectUri: redirectUri,
+      clientId: clientId ? 'present' : 'missing',
+      clientSecret: clientSecret ? 'present' : 'missing'
     });
 
-    const tokenData = response.data;
+    try {
+      const response = await this.oauthApi.post('/access_token', params, {
+        auth: {
+          username: clientId,
+          password: clientSecret,
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+      });
+
+            console.log('🔑 Token exchange response:', {
+        status: response.status,
+        data: response.data
+      });
+      
+      const tokenData = response.data;
     const token: OAuthToken = {
       access_token: tokenData.access_token,
       token_type: tokenData.token_type,
@@ -180,6 +203,15 @@ export class RedditApiService {
     this.tokenExpiresAt = token.expires_at;
 
     return token;
+    } catch (error) {
+      console.error('❌ Token exchange failed:', error);
+      if (error.response) {
+        console.error('❌ Response data:', error.response.data);
+        console.error('❌ Response status:', error.response.status);
+        console.error('❌ Response headers:', error.response.headers);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -190,14 +222,26 @@ export class RedditApiService {
       throw new Error('No refresh token available');
     }
 
+    // Get client credentials from environment
+    const clientId = import.meta.env.VITE_REDDIT_CLIENT_ID;
+    const clientSecret = import.meta.env.VITE_REDDIT_CLIENT_SECRET;
+
+    if (!clientId || !clientSecret) {
+      throw new Error('Reddit client credentials not configured');
+    }
+
     const params = new URLSearchParams({
       grant_type: 'refresh_token',
       refresh_token: this.refreshToken,
     });
 
+    // Add basic auth with client credentials
+    const auth = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+
     const response = await this.oauthApi.post('/access_token', params, {
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${auth}`,
       },
     });
 

@@ -51,7 +51,30 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/oauth/, ''),
         configure: (proxy, options) => {
           proxy.on('proxyReq', (proxyReq, req, res) => {
+            console.log('🔧 Proxy request:', {
+              method: req.method,
+              url: req.url,
+              headers: proxyReq.getHeaders()
+            });
+            
+            // Set a proper User-Agent for OAuth requests (Reddit requires this)
             proxyReq.setHeader('User-Agent', 'RedditSaverApp/1.0.0 (by /u/your_username)');
+            // Add proper content type for OAuth requests
+            if (req.method === 'POST') {
+              proxyReq.setHeader('Content-Type', 'application/x-www-form-urlencoded');
+            }
+          });
+          
+          proxy.on('proxyRes', (proxyRes, req, res) => {
+            console.log('🔧 Proxy response:', {
+              statusCode: proxyRes.statusCode,
+              headers: proxyRes.headers,
+              url: req.url
+            });
+          });
+          
+          proxy.on('error', (err, req, res) => {
+            console.error('🔧 Proxy error:', err);
           });
         },
       },

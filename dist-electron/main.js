@@ -8,7 +8,7 @@ var __dirname = path.dirname(__filename);
 process.env.DIST = path.join(__dirname, "../dist");
 process.env.VITE_PUBLIC = process.env.VITE_DEV_SERVER_URL ? path.join(process.env.DIST, "../public") : process.env.DIST;
 var win;
-var VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"] || "http://localhost:5177";
+var VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"] || "http://localhost:5173";
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error);
 });

@@ -3,12 +3,18 @@ import { authService } from '../services/authService';
 import type { AuthConfig } from '../types/reddit';
 
 export const AuthCallback: React.FC = () => {
+  console.log('🎯 AuthCallback component rendered');
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
       try {
+        console.log('🔄 AuthCallback component mounted');
+        console.log('📍 Current URL:', window.location.href);
+        console.log('🔍 Window opener:', window.opener ? 'exists' : 'none');
+        console.log('🔍 Window name:', window.name);
+        
         // Initialize auth service with the same config as main app
         const authConfig: AuthConfig = {
           clientId: import.meta.env.VITE_REDDIT_CLIENT_ID || '',
@@ -17,64 +23,55 @@ export const AuthCallback: React.FC = () => {
           scope: 'history read'
         };
         
+        console.log('🔧 Initializing auth service with config:', authConfig);
         authService.initialize(authConfig);
 
         // Get the authorization code from URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const code = urlParams.get('code');
         const error = urlParams.get('error');
+        const state = urlParams.get('state');
+
+        console.log('🔍 URL Parameters:', {
+          code: code ? 'present' : 'missing',
+          error: error || 'none',
+          state: state || 'none'
+        });
+        
+        console.log('🔍 Full URL:', window.location.href);
+        console.log('🔍 URL hash:', window.location.hash);
 
         if (error) {
+          console.error('❌ OAuth error:', error);
           setError(`Authentication failed: ${error}`);
           setStatus('error');
           return;
         }
 
         if (!code) {
+          console.error('❌ No authorization code received');
           setError('No authorization code received');
           setStatus('error');
           return;
         }
 
-        // For browser testing, simulate successful authentication
-        // In a real Electron app, this would use the Electron API
-        console.log('Auth code received:', code);
+        // Complete the OAuth flow with the real Reddit API
+        console.log('🔑 Auth code received:', code);
         
-        // Simulate successful authentication for testing
-        const mockUser = {
-          name: 'test_user',
-          id: 'test_id',
-          created_utc: Date.now() / 1000
-        };
-        
-        const mockToken = {
-          access_token: 'mock_access_token',
-          token_type: 'bearer',
-          expires_in: 3600,
-          refresh_token: 'mock_refresh_token',
-          scope: 'history read',
-          expires_at: Date.now() + (3600 * 1000)
-        };
-        
-        // Update auth service state with mock data
-        authService.initialize({
-          clientId: import.meta.env.VITE_REDDIT_CLIENT_ID || '',
-          clientSecret: import.meta.env.VITE_REDDIT_CLIENT_SECRET || '',
-          redirectUri: 'http://localhost:5173/auth/callback',
-          scope: 'history read'
-        });
-        
-        authService['saveToken'](mockToken);
-        authService['saveUser'](mockUser);
-        authService['updateState']({
-          isAuthenticated: true,
-          user: mockUser,
-          token: mockToken,
-          isLoading: false,
-          error: null,
-        });
-        
-        console.log('Mock authentication completed successfully');
+        // Complete authentication with Reddit API
+        console.log('🔄 Completing authentication...');
+        try {
+          await authService.completeAuth(code);
+          console.log('✅ Authentication completed successfully');
+          console.log('🔒 Closing popup window...');
+        } catch (error) {
+          console.error('❌ Authentication completion failed:', error);
+          console.error('❌ Error details:', {
+            message: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          });
+          throw error; // Re-throw to show error in UI
+        }
         
         setStatus('success');
         
