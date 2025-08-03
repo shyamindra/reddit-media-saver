@@ -16,6 +16,8 @@
 - `src/services/storageService.ts` - File system organization and database management
 - `src/utils/fileUtils.ts` - File system utility functions
 - `src/utils/mediaUtils.ts` - Media processing utility functions
+- `src/utils/folderOrganizer.ts` - Media type-based folder organization logic
+- `src/utils/filenameSimilarity.ts` - Filename similarity detection for subfolder grouping
 - `src/types/index.ts` - TypeScript type definitions
 - `src/database/schema.sql` - SQLite database schema
 - `src/database/index.ts` - Database connection and operations
@@ -65,14 +67,16 @@
   - [ ] 3.8 Implement download queue management
 
 - [ ] 4.0 File System Organization and Storage
-  - [ ] 4.1 Design folder hierarchy structure for content organization
-  - [ ] 4.2 Implement subreddit-based folder creation
-  - [ ] 4.3 Create descriptive filename generation logic
-  - [ ] 4.4 Handle filename conflicts and duplicates
-  - [ ] 4.5 Implement custom storage location selection
-  - [ ] 4.6 Create JSON metadata storage for each item
-  - [ ] 4.7 Generate HTML files for easy content viewing
-  - [ ] 4.8 Handle edge cases (deleted subreddits, missing content)
+  - [ ] 4.1 Design folder hierarchy structure for content organization by media type
+  - [ ] 4.2 Implement media type-based folder creation (Images, Videos, Notes)
+  - [ ] 4.3 Create subfolder organization for Images and Videos based on filename similarity
+  - [ ] 4.4 Implement Notes categorization system (to be defined)
+  - [ ] 4.5 Create descriptive filename generation logic
+  - [ ] 4.6 Handle filename conflicts and duplicates
+  - [ ] 4.7 Implement custom storage location selection
+  - [ ] 4.8 Create JSON metadata storage for each item
+  - [ ] 4.9 Generate HTML files for easy content viewing
+  - [ ] 4.10 Handle edge cases (missing content, unsupported media types)
 
 - [ ] 5.0 User Interface and Application Shell
   - [ ] 5.1 Create main application layout and navigation

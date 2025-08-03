@@ -14,6 +14,16 @@ export const APP_VERSION = '1.0.0';
 export const DEFAULT_DOWNLOAD_PATH = '~/Downloads/RedditSaver';
 export const MAX_CONCURRENT_DOWNLOADS = 3;
 
+// Folder Organization
+export const FOLDER_STRUCTURE = {
+  IMAGES: 'Images',
+  VIDEOS: 'Videos',
+  NOTES: 'Notes',
+} as const;
+
+export const SIMILARITY_THRESHOLD = 0.7; // For filename similarity grouping
+export const MAX_SUBFOLDER_LENGTH = 50; // Maximum characters for subfolder names
+
 // File Extensions
 export const SUPPORTED_IMAGE_FORMATS = [
   '.jpg',

@@ -83,6 +83,7 @@ export interface DownloadItem {
 export interface ContentMetadata {
   id: string;
   type: 'post' | 'comment';
+  mediaType: 'image' | 'video' | 'note';
   title: string;
   author: string;
   subreddit: string;
@@ -92,7 +93,21 @@ export interface ContentMetadata {
   score: number;
   localPath: string;
   mediaFiles: string[];
+  folderPath: string;
+  category?: string; // For notes categorization
   downloadedAt: number;
+}
+
+export interface FolderStructure {
+  images: {
+    [subfolder: string]: string[]; // filename -> filepath mapping
+  };
+  videos: {
+    [subfolder: string]: string[]; // filename -> filepath mapping
+  };
+  notes: {
+    [category: string]: string[]; // category -> filepath mapping
+  };
 }
 
 // App State Types
