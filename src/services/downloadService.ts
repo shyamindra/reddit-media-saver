@@ -1,6 +1,4 @@
 import axios from 'axios';
-import { promises as fs } from 'fs';
-import path from 'path';
 import type { ContentItem, DownloadProgress } from '../types';
 import { MediaUtils } from '../utils/mediaUtils';
 
@@ -26,7 +24,7 @@ export class DownloadService {
   private defaultRetries = 3;
 
   /**
-   * Download image from URL
+   * Download image from URL using Electron API
    */
   public async downloadImage(item: ContentItem, options: DownloadOptions = {}): Promise<DownloadResult> {
     if (!item.media?.url) {
@@ -36,7 +34,6 @@ export class DownloadService {
     try {
       const mediaInfo = MediaUtils.detectMediaType(item.media.url);
       const filename = options.filename || this.generateImageFilename(item, mediaInfo.extension);
-      const filePath = options.destination ? path.join(options.destination, filename) : filename;
 
       const abortController = new AbortController();
       this.activeDownloads.set(item.id, abortController);
@@ -48,20 +45,30 @@ export class DownloadService {
         headers: { 'User-Agent': 'RedditSaverApp/1.0.0' }
       });
 
-      // Ensure destination directory exists
-      if (options.destination) {
-        await fs.mkdir(options.destination, { recursive: true });
+      // Use Electron API to save file
+      if (window.electronAPI?.saveFile) {
+        const result = await window.electronAPI.saveFile(
+          filename,
+          Buffer.from(response.data),
+          options.destination
+        );
+        
+        this.activeDownloads.delete(item.id);
+        
+        if (result && typeof result === 'object' && 'success' in result) {
+          return {
+            success: result.success as boolean,
+            filePath: result.filePath as string,
+            bytesDownloaded: response.data.byteLength,
+            contentType: response.headers['content-type']
+          };
+        }
       }
-
-      // Write file to disk
-      await fs.writeFile(filePath, response.data);
 
       this.activeDownloads.delete(item.id);
       return {
-        success: true,
-        filePath,
-        bytesDownloaded: response.data.byteLength,
-        contentType: response.headers['content-type']
+        success: false,
+        error: 'Electron API not available'
       };
     } catch (error) {
       this.activeDownloads.delete(item.id);
@@ -73,7 +80,7 @@ export class DownloadService {
   }
 
   /**
-   * Download video from URL
+   * Download video from URL using Electron API
    */
   public async downloadVideo(item: ContentItem, options: DownloadOptions = {}): Promise<DownloadResult> {
     if (!item.media?.url) {
@@ -83,7 +90,6 @@ export class DownloadService {
     try {
       const mediaInfo = MediaUtils.detectMediaType(item.media.url);
       const filename = options.filename || this.generateVideoFilename(item, mediaInfo.extension);
-      const filePath = options.destination ? path.join(options.destination, filename) : filename;
 
       const abortController = new AbortController();
       this.activeDownloads.set(item.id, abortController);
@@ -95,20 +101,30 @@ export class DownloadService {
         headers: { 'User-Agent': 'RedditSaverApp/1.0.0' }
       });
 
-      // Ensure destination directory exists
-      if (options.destination) {
-        await fs.mkdir(options.destination, { recursive: true });
+      // Use Electron API to save file
+      if (window.electronAPI?.saveFile) {
+        const result = await window.electronAPI.saveFile(
+          filename,
+          Buffer.from(response.data),
+          options.destination
+        );
+        
+        this.activeDownloads.delete(item.id);
+        
+        if (result && typeof result === 'object' && 'success' in result) {
+          return {
+            success: result.success as boolean,
+            filePath: result.filePath as string,
+            bytesDownloaded: response.data.byteLength,
+            contentType: response.headers['content-type']
+          };
+        }
       }
-
-      // Write file to disk
-      await fs.writeFile(filePath, response.data);
 
       this.activeDownloads.delete(item.id);
       return {
-        success: true,
-        filePath,
-        bytesDownloaded: response.data.byteLength,
-        contentType: response.headers['content-type']
+        success: false,
+        error: 'Electron API not available'
       };
     } catch (error) {
       this.activeDownloads.delete(item.id);
@@ -120,78 +136,56 @@ export class DownloadService {
   }
 
   /**
-   * Download any media file
+   * Download media (image or video) from URL
    */
   public async downloadMedia(item: ContentItem, options: DownloadOptions = {}): Promise<DownloadResult> {
     if (!item.media?.url) {
       return { success: false, error: 'No media URL available' };
     }
 
-    switch (item.media.type) {
+    const mediaInfo = MediaUtils.detectMediaType(item.media.url);
+    
+    switch (mediaInfo.type) {
       case 'image':
-      case 'gif':
         return this.downloadImage(item, options);
       case 'video':
+      case 'gif':
         return this.downloadVideo(item, options);
       default:
-        return { success: false, error: `Unsupported media type: ${item.media.type}` };
+        return { success: false, error: `Unsupported media type: ${mediaInfo.type}` };
     }
   }
 
-  /**
-   * Generate filename for image
-   */
   private generateImageFilename(item: ContentItem, extension?: string): string {
-    const fileExtension = extension || this.getImageExtension(item.media?.url || '');
-    return MediaUtils.generateFilename(
-      item.title,
-      item.subreddit,
-      item.author,
-      'image',
-      fileExtension
-    );
+    const ext = extension || this.getImageExtension(item.media!.url!);
+    const baseName = this.sanitizeFilename(item.title || item.id);
+    return `${baseName}.${ext}`;
   }
 
-  /**
-   * Generate filename for video
-   */
   private generateVideoFilename(item: ContentItem, extension?: string): string {
-    const fileExtension = extension || this.getVideoExtension(item.media?.url || '');
-    return MediaUtils.generateFilename(
-      item.title,
-      item.subreddit,
-      item.author,
-      'video',
-      fileExtension
-    );
+    const ext = extension || this.getVideoExtension(item.media!.url!);
+    const baseName = this.sanitizeFilename(item.title || item.id);
+    return `${baseName}.${ext}`;
   }
 
-  /**
-   * Get image extension from URL
-   */
   private getImageExtension(url: string): string {
-    const lowerUrl = url.toLowerCase();
-    if (lowerUrl.includes('.jpg') || lowerUrl.includes('.jpeg')) return 'jpg';
-    if (lowerUrl.includes('.png')) return 'png';
-    if (lowerUrl.includes('.gif')) return 'gif';
-    if (lowerUrl.includes('.webp')) return 'webp';
-    return 'jpg';
+    const urlLower = url.toLowerCase();
+    if (urlLower.includes('.jpg') || urlLower.includes('.jpeg')) return 'jpg';
+    if (urlLower.includes('.png')) return 'png';
+    if (urlLower.includes('.gif')) return 'gif';
+    if (urlLower.includes('.webp')) return 'webp';
+    return 'jpg'; // default
   }
 
-  /**
-   * Get video extension from URL
-   */
   private getVideoExtension(url: string): string {
-    const lowerUrl = url.toLowerCase();
-    if (lowerUrl.includes('.mp4')) return 'mp4';
-    if (lowerUrl.includes('.webm')) return 'webm';
-    if (lowerUrl.includes('.avi')) return 'avi';
-    return 'mp4';
+    const urlLower = url.toLowerCase();
+    if (urlLower.includes('.mp4')) return 'mp4';
+    if (urlLower.includes('.webm')) return 'webm';
+    if (urlLower.includes('.mov')) return 'mov';
+    if (urlLower.includes('.avi')) return 'avi';
+    return 'mp4'; // default
   }
 
-  /**
-   * Sanitize filename for filesystem
-   */
   private sanitizeFilename(filename: string): string {
     return filename
       .replace(/[<>:"/\\|?*]/g, '_')
@@ -199,43 +193,28 @@ export class DownloadService {
       .substring(0, 100);
   }
 
-  /**
-   * Cancel active download
-   */
   public cancelDownload(itemId: string): boolean {
-    const abortController = this.activeDownloads.get(itemId);
-    if (abortController) {
-      abortController.abort();
+    const controller = this.activeDownloads.get(itemId);
+    if (controller) {
+      controller.abort();
       this.activeDownloads.delete(itemId);
       return true;
     }
     return false;
   }
 
-  /**
-   * Cancel all active downloads
-   */
   public cancelAllDownloads(): void {
-    for (const [itemId, abortController] of this.activeDownloads) {
-      abortController.abort();
-    }
+    this.activeDownloads.forEach(controller => controller.abort());
     this.activeDownloads.clear();
   }
 
-  /**
-   * Get active download count
-   */
   public getActiveDownloadCount(): number {
     return this.activeDownloads.size;
   }
 
-  /**
-   * Check if download is active
-   */
   public isDownloadActive(itemId: string): boolean {
     return this.activeDownloads.has(itemId);
   }
 }
 
-// Export singleton instance
 export const downloadService = new DownloadService(); 

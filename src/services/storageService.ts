@@ -12,10 +12,17 @@ if (!isBrowser) {
 
 import type { ContentMetadata, StorageConfig, StorageStats } from '../types';
 import type { ContentItem } from '../types';
-import { FileUtils } from '../utils/fileUtils';
 import { MediaUtils } from '../utils/mediaUtils';
-import { FolderOrganizer } from '../utils/folderOrganizer';
 import { FilenameSimilarity } from '../utils/filenameSimilarity';
+
+// Only import Node.js utilities if not in browser
+let FileUtils: any;
+let FolderOrganizer: any;
+
+if (!isBrowser) {
+  FileUtils = require('../utils/fileUtils').FileUtils;
+  FolderOrganizer = require('../utils/folderOrganizer').FolderOrganizer;
+}
 
 export class StorageService {
   private fileUtils: FileUtils;
@@ -26,7 +33,7 @@ export class StorageService {
   constructor(config: StorageConfig) {
     this.config = config;
     
-    if (!isBrowser) {
+    if (!isBrowser && FileUtils && FolderOrganizer) {
       this.fileUtils = new FileUtils(config.basePath);
       this.folderOrganizer = new FolderOrganizer({
         groupBySubreddit: config.organizeBySubreddit,
@@ -44,7 +51,9 @@ export class StorageService {
       return;
     }
     
-    await this.fileUtils.initializeFolderStructure();
+    if (this.fileUtils) {
+      await this.fileUtils.initializeFolderStructure();
+    }
   }
 
   /**
@@ -79,10 +88,12 @@ export class StorageService {
     }
 
     // Save metadata
-    await this.fileUtils.writeMetadata(metadata);
+    if (this.fileUtils) {
+      await this.fileUtils.writeMetadata(metadata);
+    }
 
     // Organize files if enabled
-    if (this.config.createSubfolders) {
+    if (this.config.createSubfolders && this.folderOrganizer) {
       await this.organizeContent(metadata);
     }
 
@@ -98,6 +109,8 @@ export class StorageService {
    * Organize content into subfolders
    */
   private async organizeContent(metadata: ContentMetadata): Promise<void> {
+    if (!this.fileUtils || !this.folderOrganizer) return;
+    
     const folderPath = this.fileUtils.getMediaFolderPath(metadata.mediaType);
     
     if (metadata.mediaType === 'image' || metadata.mediaType === 'video') {
@@ -109,6 +122,8 @@ export class StorageService {
    * Generate HTML file for content viewing
    */
   private async generateHtmlFile(metadata: ContentMetadata): Promise<void> {
+    if (isBrowser || !fs) return;
+    
     const htmlContent = this.generateHtmlContent(metadata);
     const htmlPath = metadata.localPath.replace(path.extname(metadata.localPath), '.html');
     
@@ -282,14 +297,16 @@ export class StorageService {
       lastUpdated: Date.now()
     };
 
-    // Calculate total size
-    for (const item of metadata) {
-      if (item.localPath) {
-        try {
-          const fileStats = await fs.stat(item.localPath);
-          stats.totalSize += fileStats.size;
-        } catch {
-          // File might not exist
+    // Calculate total size (only in non-browser environment)
+    if (!isBrowser && fs) {
+      for (const item of metadata) {
+        if (item.localPath) {
+          try {
+            const fileStats = await fs.stat(item.localPath);
+            stats.totalSize += fileStats.size;
+          } catch {
+            // File might not exist
+          }
         }
       }
     }
@@ -301,8 +318,14 @@ export class StorageService {
    * Delete content and its files
    */
   public async deleteContent(id: string): Promise<boolean> {
+    if (isBrowser) {
+      // In browser, just remove from memory
+      this.inMemoryStorage.delete(id);
+      return true;
+    }
+
     const metadata = await this.getContentMetadata(id);
-    if (!metadata) {
+    if (!metadata || !this.fileUtils || !fs) {
       return false;
     }
 
@@ -336,10 +359,12 @@ export class StorageService {
    */
   public updateConfig(config: Partial<StorageConfig>): void {
     this.config = { ...this.config, ...config };
-    this.folderOrganizer.updateConfig({
-      groupBySubreddit: this.config.organizeBySubreddit,
-      groupByAuthor: this.config.organizeByAuthor
-    });
+    if (this.folderOrganizer) {
+      this.folderOrganizer.updateConfig({
+        groupBySubreddit: this.config.organizeBySubreddit,
+        groupByAuthor: this.config.organizeByAuthor
+      });
+    }
   }
 
   /**
@@ -353,6 +378,8 @@ export class StorageService {
    * Export content metadata to JSON
    */
   public async exportMetadata(outputPath: string): Promise<void> {
+    if (isBrowser || !fs) return;
+    
     const metadata = await this.getAllContentMetadata();
     await fs.writeFile(outputPath, JSON.stringify(metadata, null, 2), 'utf8');
   }
@@ -361,6 +388,8 @@ export class StorageService {
    * Import content metadata from JSON
    */
   public async importMetadata(inputPath: string): Promise<void> {
+    if (isBrowser || !fs) return;
+    
     const content = await fs.readFile(inputPath, 'utf8');
     const metadata: ContentMetadata[] = JSON.parse(content);
     

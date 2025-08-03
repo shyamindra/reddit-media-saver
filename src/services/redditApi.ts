@@ -3,9 +3,9 @@ import type { AxiosInstance, AxiosResponse } from 'axios';
 import type { RedditPost, RedditComment, RedditApiResponse, OAuthToken } from '../types/reddit';
 
 // Reddit API Configuration
-const REDDIT_API_BASE = 'https://oauth.reddit.com';
+const REDDIT_API_BASE = import.meta.env.DEV ? '/api/reddit' : 'https://oauth.reddit.com';
 const REDDIT_WWW_BASE = 'https://www.reddit.com';
-const REDDIT_OAUTH_BASE = 'https://www.reddit.com/api/v1';
+const REDDIT_OAUTH_BASE = import.meta.env.DEV ? '/api/oauth' : 'https://www.reddit.com/api/v1';
 
 // Reddit API Rate Limits
 const RATE_LIMIT_REQUESTS = 60; // requests per window

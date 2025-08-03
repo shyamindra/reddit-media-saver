@@ -9,16 +9,11 @@ import { authService } from '../services/authService';
 import type { AuthConfig } from '../types/reddit';
 import { contentService } from '../services/contentService';
 import { StorageService } from '../services/storageService';
-import type { StorageConfig } from '../types';
+import type { StorageConfig, AppConfig } from '../types';
 import { databaseManager } from '../services/databaseService';
 import { logger } from '../utils/logger';
 import type { AuthState } from '../types/reddit';
 import type { ContentItem } from '../types';
-
-export interface AppConfig {
-  auth: AuthConfig;
-  storage: StorageConfig;
-}
 
 interface AppProps {
   config: AppConfig;
@@ -162,7 +157,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
                 </span>
               </div>
               <div className="ml-4 flex items-center space-x-2">
-                {process.env.NODE_ENV === 'development' && (
+                {import.meta.env.DEV && (
                   <button
                     onClick={() => setShowDebugPanel(true)}
                     className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1 rounded border"

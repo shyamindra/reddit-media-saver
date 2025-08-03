@@ -1,6 +1,11 @@
 import React from 'react';
 import './App.css';
-import { App as AppComponent, AppConfig } from './components/App';
+import { App as AppComponent } from './components/App';
+import { AuthCallback } from './components/AuthCallback';
+import type { AppConfig } from './types';
+import { testEnvironmentVariables } from './utils/envTest';
+import { runDebugTest } from './utils/debugTest';
+import { runComprehensiveTest } from './utils/comprehensiveTest';
 
 // Extend Window interface to include our electronAPI
 declare global {
@@ -21,9 +26,9 @@ declare global {
 // Default configuration
 const defaultConfig: AppConfig = {
   auth: {
-    clientId: process.env.REDDIT_CLIENT_ID || '',
-    clientSecret: process.env.REDDIT_CLIENT_SECRET || '',
-    redirectUri: 'http://localhost:3000/auth/callback',
+    clientId: import.meta.env.VITE_REDDIT_CLIENT_ID || '',
+    clientSecret: import.meta.env.VITE_REDDIT_CLIENT_SECRET || '',
+    redirectUri: 'http://localhost:5173/auth/callback',
     scope: 'history read'
   },
   storage: {
@@ -36,6 +41,27 @@ const defaultConfig: AppConfig = {
 };
 
 function App() {
+  // Run environment test on app startup
+  React.useEffect(() => {
+    console.log('🚀 App starting up...');
+    testEnvironmentVariables();
+    runDebugTest();
+    runComprehensiveTest();
+  }, []);
+
+  // Debug: Log environment variables
+  console.log('Environment variables:', {
+    VITE_REDDIT_CLIENT_ID: import.meta.env.VITE_REDDIT_CLIENT_ID,
+    VITE_REDDIT_CLIENT_SECRET: import.meta.env.VITE_REDDIT_CLIENT_SECRET,
+    hasClientId: !!import.meta.env.VITE_REDDIT_CLIENT_ID,
+    hasClientSecret: !!import.meta.env.VITE_REDDIT_CLIENT_SECRET
+  });
+
+  // Check if this is the auth callback route
+  if (window.location.pathname === '/auth/callback') {
+    return <AuthCallback />;
+  }
+
   // Check if Reddit API credentials are configured
   if (!defaultConfig.auth.clientId || !defaultConfig.auth.clientSecret) {
     return (
@@ -63,7 +89,7 @@ function App() {
                     <li>• Name: "Reddit Media Saver"</li>
                     <li>• App type: "web app"</li>
                     <li>• Description: "Personal media saver"</li>
-                    <li>• Redirect URI: "http://localhost:3000/auth/callback"</li>
+                    <li>• Redirect URI: "http://localhost:5173/auth/callback"</li>
                   </ul>
                 </li>
                 <li>4. Copy the client ID (under the app name)</li>
@@ -71,8 +97,8 @@ function App() {
                 <li>6. Create a <code className="bg-gray-200 px-1 rounded">.env</code> file in the project root with:</li>
               </ol>
               <div className="bg-gray-800 text-green-400 p-3 rounded mt-2 text-xs font-mono">
-                REDDIT_CLIENT_ID=your_client_id_here<br/>
-                REDDIT_CLIENT_SECRET=your_client_secret_here
+                VITE_REDDIT_CLIENT_ID=your_client_id_here<br/>
+                VITE_REDDIT_CLIENT_SECRET=your_client_secret_here
               </div>
             </div>
             <div className="mt-4 text-xs text-gray-500">
