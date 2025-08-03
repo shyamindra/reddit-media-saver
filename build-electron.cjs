@@ -12,7 +12,7 @@ async function buildElectron() {
       target: 'node18',
       outfile: 'dist-electron/main.js',
       external: ['electron'],
-      format: 'cjs',
+      format: 'esm',
       sourcemap: true,
     });
 
@@ -24,7 +24,7 @@ async function buildElectron() {
       target: 'node18',
       outfile: 'dist-electron/preload.js',
       external: ['electron'],
-      format: 'cjs',
+      format: 'esm',
       sourcemap: true,
     });
 
