@@ -45,11 +45,13 @@
     "process-links:batch20": "tsx src/scripts/processRedditLinks.ts --limit 20",
     "process-links:batch50": "tsx src/scripts/processRedditLinks.ts --limit 50",
     "process-links:batch100": "tsx src/scripts/processRedditLinks.ts --limit 100",
+    "auto-download": "tsx src/scripts/autoDownload.ts",
     "debug-api": "tsx src/scripts/debugRedditApi.ts",
     "retry-failed": "tsx src/scripts/retryFailedDownloads.ts",
     "organize-downloads": "tsx src/scripts/organizeDownloads.ts",
     "organize-downloads-advanced": "tsx src/scripts/organizeDownloadsAdvanced.ts",
-    "move-gifs": "tsx src/scripts/moveGifsToGifsFolder.ts"
+    "move-gifs": "tsx src/scripts/moveGifsToGifsFolder.ts",
+    "fix-corrupted-files": "tsx src/scripts/fixCorruptedFiles.ts"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
