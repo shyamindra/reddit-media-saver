@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { authService, AuthConfig } from '../services/authService';
+import { authService } from '../services/authService';
+import type { AuthConfig } from '../types/reddit';
 
 interface AuthProps {
   config: AuthConfig;

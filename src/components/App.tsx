@@ -5,12 +5,13 @@ import { ContentBrowser } from './ContentBrowser';
 import { SettingsPanel } from './SettingsPanel';
 import { DebugPanel } from './DebugPanel';
 import { ErrorBoundary } from './ErrorBoundary';
-import { authService, AuthConfig } from '../services/authService';
+import { authService } from '../services/authService';
+import type { AuthConfig } from '../types/reddit';
 import { contentService } from '../services/contentService';
 import { StorageService, StorageConfig } from '../services/storageService';
 import { databaseManager } from '../services/databaseService';
 import { logger } from '../utils/logger';
-import type { AuthState } from '../types';
+import type { AuthState } from '../types/reddit';
 import type { ContentItem } from '../services/contentService';
 
 export interface AppConfig {

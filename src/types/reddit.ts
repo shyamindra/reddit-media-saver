@@ -75,4 +75,19 @@ export interface OAuthToken {
   refresh_token?: string;
   scope: string;
   expires_at: number;
+}
+
+export interface AuthConfig {
+  clientId: string;
+  clientSecret: string;
+  redirectUri: string;
+  scope?: string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: any | null;
+  token: OAuthToken | null;
+  isLoading: boolean;
+  error: string | null;
 } 

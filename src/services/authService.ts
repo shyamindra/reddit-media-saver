@@ -1,20 +1,5 @@
 import { redditApi } from './redditApi';
-import type { OAuthToken } from '../types/reddit';
-
-export interface AuthConfig {
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-  scope?: string;
-}
-
-export interface AuthState {
-  isAuthenticated: boolean;
-  user: any | null;
-  token: OAuthToken | null;
-  isLoading: boolean;
-  error: string | null;
-}
+import type { OAuthToken, AuthConfig, AuthState } from '../types/reddit';
 
 export class AuthService {
   private config: AuthConfig | null = null;
@@ -331,6 +316,9 @@ export class AuthService {
     return this.state.error;
   }
 }
+
+// Re-export types for backward compatibility
+export type { AuthConfig, AuthState } from '../types/reddit';
 
 // Export singleton instance
 export const authService = new AuthService(); 
