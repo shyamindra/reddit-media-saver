@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import './App.css'
+import { useState, useEffect } from 'react';
+import './App.css';
 
 // Extend Window interface to include our electronAPI
 declare global {
@@ -18,31 +18,31 @@ declare global {
 }
 
 function App() {
-  const [mainProcessMessage, setMainProcessMessage] = useState<string>('')
-  const [isElectron, setIsElectron] = useState<boolean>(false)
+  const [mainProcessMessage, setMainProcessMessage] = useState<string>('');
+  const [isElectron, setIsElectron] = useState<boolean>(false);
 
   useEffect(() => {
     // Check if we're running in Electron
-    setIsElectron(window.electronAPI !== undefined)
-    
+    setIsElectron(window.electronAPI !== undefined);
+
     if (window.electronAPI) {
       // Listen for messages from the main process
       window.electronAPI.onMainProcessMessage((message: string) => {
-        setMainProcessMessage(message)
-      })
+        setMainProcessMessage(message);
+      });
     }
-  }, [])
+  }, []);
 
   const handleRedditAuth = async () => {
     if (window.electronAPI) {
       try {
-        const result = await window.electronAPI.redditAuth()
-        console.log('Reddit auth result:', result)
+        const result = await window.electronAPI.redditAuth();
+        console.log('Reddit auth result:', result);
       } catch (error) {
-        console.error('Reddit auth error:', error)
+        console.error('Reddit auth error:', error);
       }
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -54,7 +54,7 @@ function App() {
           <p className="text-lg text-gray-600 mb-8">
             Download and organize your saved Reddit content locally
           </p>
-          
+
           {isElectron ? (
             <div className="space-y-4">
               <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
@@ -80,7 +80,7 @@ function App() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

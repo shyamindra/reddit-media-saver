@@ -13,6 +13,7 @@ async function buildElectron() {
       outfile: 'dist-electron/main.js',
       external: ['electron'],
       format: 'cjs',
+      sourcemap: true,
     });
 
     // Build preload script
@@ -24,6 +25,7 @@ async function buildElectron() {
       outfile: 'dist-electron/preload.js',
       external: ['electron'],
       format: 'cjs',
+      sourcemap: true,
     });
 
     console.log('✅ Electron build completed successfully');

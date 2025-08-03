@@ -78,3 +78,4 @@ import_electron.ipcMain.handle("get-saved-content", async (event, ...args) => {
   console.log("Get saved content requested:", args);
   return { success: false, message: "Not implemented yet" };
 });
+//# sourceMappingURL=main.js.map

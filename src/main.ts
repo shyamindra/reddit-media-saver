@@ -35,7 +35,7 @@ function createWindow() {
 
   // Test active push message to Renderer-process.
   win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString());
+    win?.webContents.send('main-process-message', new Date().toLocaleString());
   });
 
   if (VITE_DEV_SERVER_URL) {
@@ -81,4 +81,4 @@ ipcMain.handle('get-saved-content', async (event, ...args) => {
   // TODO: Implement fetching saved content
   console.log('Get saved content requested:', args);
   return { success: false, message: 'Not implemented yet' };
-}); 
+});

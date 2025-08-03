@@ -1,0 +1,123 @@
+// Reddit API Types
+export interface RedditPost {
+  id: string;
+  title: string;
+  author: string;
+  subreddit: string;
+  url: string;
+  permalink: string;
+  created_utc: number;
+  score: number;
+  num_comments: number;
+  is_video: boolean;
+  media?: {
+    reddit_video?: {
+      fallback_url: string;
+    };
+  };
+  preview?: {
+    images: Array<{
+      source: {
+        url: string;
+        width: number;
+        height: number;
+      };
+    }>;
+  };
+  post_hint?: string;
+  domain: string;
+  selftext?: string;
+}
+
+export interface RedditComment {
+  id: string;
+  body: string;
+  author: string;
+  subreddit: string;
+  link_id: string;
+  parent_id: string;
+  created_utc: number;
+  score: number;
+  permalink: string;
+}
+
+export interface SavedContent {
+  kind: 't1' | 't3'; // t1 = comment, t3 = post
+  data: RedditPost | RedditComment;
+}
+
+// Authentication Types
+export interface AuthState {
+  isAuthenticated: boolean;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  user?: {
+    name: string;
+    id: string;
+  };
+}
+
+// Download Types
+export interface DownloadProgress {
+  current: number;
+  total: number;
+  percentage: number;
+  currentItem?: string;
+  status: 'idle' | 'downloading' | 'completed' | 'error';
+}
+
+export interface DownloadItem {
+  id: string;
+  type: 'post' | 'comment';
+  title: string;
+  subreddit: string;
+  url: string;
+  status: 'pending' | 'downloading' | 'completed' | 'error';
+  error?: string;
+  localPath?: string;
+  metadata?: any;
+}
+
+// File System Types
+export interface ContentMetadata {
+  id: string;
+  type: 'post' | 'comment';
+  title: string;
+  author: string;
+  subreddit: string;
+  url: string;
+  permalink: string;
+  created_utc: number;
+  score: number;
+  localPath: string;
+  mediaFiles: string[];
+  downloadedAt: number;
+}
+
+// App State Types
+export interface AppState {
+  auth: AuthState;
+  downloads: {
+    progress: DownloadProgress;
+    items: DownloadItem[];
+  };
+  settings: {
+    downloadPath: string;
+    organizeBySubreddit: boolean;
+    downloadMedia: boolean;
+    maxConcurrentDownloads: number;
+  };
+}
+
+// Electron API Types
+export interface ElectronAPI {
+  redditAuth: (...args: any[]) => Promise<any>;
+  downloadContent: (...args: any[]) => Promise<any>;
+  getSavedContent: (...args: any[]) => Promise<any>;
+  selectDirectory: (...args: any[]) => Promise<any>;
+  saveFile: (...args: any[]) => Promise<any>;
+  onMainProcessMessage: (callback: (message: string) => void) => void;
+  onDownloadProgress: (callback: (progress: DownloadProgress) => void) => void;
+  onAuthStatus: (callback: (status: AuthState) => void) => void;
+}

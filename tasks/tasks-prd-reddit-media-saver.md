@@ -4,7 +4,8 @@
 
 - `package.json` - Main project configuration and dependencies
 - `src/main.ts` - Electron main process entry point
-- `src/renderer.tsx` - Electron renderer process (React app)
+- `src/App.tsx` - Main React application component
+- `src/preload.ts` - Electron preload script for secure IPC
 - `src/components/App.tsx` - Main application component
 - `src/components/Auth.tsx` - OAuth2 authentication component
 - `src/components/DownloadManager.tsx` - Download progress and management component
@@ -20,6 +21,7 @@
 - `src/database/index.ts` - Database connection and operations
 - `electron-builder.json` - Electron build configuration
 - `vite.config.ts` - Vite build configuration
+- `build-electron.cjs` - Electron build script for main process compilation
 - `tailwind.config.js` - Tailwind CSS configuration
 - `src/styles/index.css` - Global styles and Tailwind imports
 - `src/components/App.test.tsx` - Unit tests for main app component
@@ -34,14 +36,14 @@
 
 ## Tasks
 
-- [ ] 1.0 Project Setup and Infrastructure
-  - [ ] 1.1 Initialize Electron + React + TypeScript project with Vite
-  - [ ] 1.2 Set up Tailwind CSS for styling
-  - [ ] 1.3 Configure ESLint and Prettier for code quality
-  - [ ] 1.4 Set up Jest and React Testing Library for testing
-  - [ ] 1.5 Configure Electron Builder for packaging
-  - [ ] 1.6 Create basic project structure and folder organization
-  - [ ] 1.7 Set up development scripts in package.json
+- [x] 1.0 Project Setup and Infrastructure
+  - [x] 1.1 Initialize Electron + React + TypeScript project with Vite
+  - [x] 1.2 Set up Tailwind CSS for styling
+  - [x] 1.3 Configure ESLint and Prettier for code quality
+  - [x] 1.4 Set up Jest and React Testing Library for testing
+  - [x] 1.5 Configure Electron Builder for packaging
+  - [x] 1.6 Create basic project structure and folder organization
+  - [x] 1.7 Set up development scripts in package.json
 
 - [ ] 2.0 Reddit API Integration and Authentication
   - [ ] 2.1 Research Reddit API endpoints for saved content and OAuth2
