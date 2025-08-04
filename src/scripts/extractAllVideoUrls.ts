@@ -1,6 +1,7 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
+import extractionConfig from '../config/extraction.config';
 
 interface RedditPost {
   url: string;
@@ -17,17 +18,18 @@ interface ExtractionResult {
 }
 
 class VideoUrlExtractor {
-  private userAgent = 'RedditSaverApp/1.0.0 (by /u/reddit_user)';
+  private config = extractionConfig;
   private extractedUrls: Map<string, string[]> = new Map(); // title -> URLs
   private failedRequests: RedditPost[] = [];
+  private processedCount = 0;
 
   /**
    * Clear existing files and start fresh
    */
   private clearExistingFiles(): void {
     const filesToClear = [
-      'all-extracted-video-urls.txt',
-      'failed-extraction-requests.txt'
+      'extracted_files/all-extracted-video-urls.txt',
+      'extracted_files/failed_requests/failed-extraction-requests.txt'
     ];
 
     filesToClear.forEach(filename => {
@@ -282,7 +284,7 @@ class VideoUrlExtractor {
     }
 
     // Save complete list
-    this.saveUrlsToFile(this.extractedUrls, 'all-extracted-video-urls.txt');
+    this.saveUrlsToFile(this.extractedUrls, 'extracted_files/all-extracted-video-urls.txt');
     
     // Save failed requests in key-value format
     this.saveFailedRequests();
@@ -407,8 +409,14 @@ class VideoUrlExtractor {
   /**
    * Save failed requests to file in key-value format
    */
-  saveFailedRequests(filename: string = 'failed-extraction-requests.txt'): void {
+  saveFailedRequests(filename: string = 'extracted_files/failed_requests/failed-extraction-requests.txt'): void {
     if (this.failedRequests.length > 0) {
+      // Ensure the failed_requests directory exists
+      const failedRequestsDir = 'extracted_files/failed_requests';
+      if (!existsSync(failedRequestsDir)) {
+        mkdirSync(failedRequestsDir, { recursive: true });
+      }
+      
       const lines: string[] = [];
       
       for (const post of this.failedRequests) {
@@ -428,7 +436,7 @@ class VideoUrlExtractor {
   /**
    * Retry failed requests from file
    */
-  async retryFailedRequests(filename: string = 'failed-extraction-requests.txt'): Promise<string[]> {
+  async retryFailedRequests(filename: string = 'extracted_files/failed_requests/failed-extraction-requests.txt'): Promise<string[]> {
     if (!existsSync(filename)) {
       console.log(`❌ No failed requests file found: ${filename}`);
       return [];

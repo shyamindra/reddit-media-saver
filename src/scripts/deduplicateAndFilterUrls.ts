@@ -100,7 +100,7 @@ class UrlDeduplicator {
   /**
    * Load URLs from file and parse them
    */
-  loadUrlsFromFile(filename: string = 'all-extracted-video-urls.txt'): void {
+  loadUrlsFromFile(filename: string = 'extracted_files/all-extracted-video-urls.txt'): void {
     if (!existsSync(filename)) {
       console.log(`❌ File not found: ${filename}`);
       return;
@@ -195,7 +195,7 @@ class UrlDeduplicator {
   /**
    * Save deduplicated URLs to file
    */
-  saveDeduplicatedUrls(urls: string[], filename: string = 'deduplicated-video-urls.txt'): void {
+  saveDeduplicatedUrls(urls: string[], filename: string = 'extracted_files/deduplicated-video-urls.txt'): void {
     writeFileSync(filename, urls.join('\n'), 'utf8');
     console.log(`💾 Saved ${urls.length} deduplicated URLs to ${filename}`);
   }

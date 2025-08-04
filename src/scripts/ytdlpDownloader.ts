@@ -175,7 +175,7 @@ class YtdlpDownloader {
   /**
    * Load URLs from key-value format file (all-extracted-video-urls.txt)
    */
-  loadEntriesFromFile(filePath: string = 'all-extracted-video-urls.txt'): VideoEntry[] {
+  loadEntriesFromFile(filePath: string = 'extracted_files/all-extracted-video-urls.txt'): VideoEntry[] {
     if (!existsSync(filePath)) {
       console.log(`❌ File not found: ${filePath}`);
       return [];
@@ -207,7 +207,7 @@ class YtdlpDownloader {
   /**
    * Load URLs from deduplicated file (simple list format)
    */
-  loadUrlsFromDeduplicatedFile(filePath: string = 'deduplicated-video-urls.txt'): VideoEntry[] {
+  loadUrlsFromDeduplicatedFile(filePath: string = 'extracted_files/deduplicated-video-urls.txt'): VideoEntry[] {
     if (!existsSync(filePath)) {
       console.log(`❌ File not found: ${filePath}`);
       return [];
@@ -232,7 +232,7 @@ class YtdlpDownloader {
   /**
    * Save failed entries to a file for retry
    */
-  saveFailedEntries(results: DownloadResult[], filename: string = 'failed-video-downloads.txt'): void {
+  saveFailedEntries(results: DownloadResult[], filename: string = 'extracted_files/failed_requests/failed-video-downloads.txt'): void {
     const failedEntries = results
       .filter(result => !result.success)
       .map(result => `# ${result.title}\n${result.url}`);
@@ -247,8 +247,8 @@ class YtdlpDownloader {
    * Create a mapping between deduplicated URLs and their original titles
    */
   createDeduplicatedMapping(
-    originalFile: string = 'all-extracted-video-urls.txt',
-    deduplicatedFile: string = 'deduplicated-video-urls.txt'
+    originalFile: string = 'extracted_files/all-extracted-video-urls.txt',
+    deduplicatedFile: string = 'extracted_files/deduplicated-video-urls.txt'
   ): VideoEntry[] {
     if (!existsSync(originalFile) || !existsSync(deduplicatedFile)) {
       console.log(`❌ One or both files not found: ${originalFile}, ${deduplicatedFile}`);
