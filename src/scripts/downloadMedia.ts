@@ -20,15 +20,42 @@ interface DownloadResult {
 class MediaDownloader {
   private outputDir = 'downloads/Media';
   private usedTitles = new Set<string>();
+  private videoUrls = new Set<string>();
 
   constructor() {
     this.ensureOutputDirectory();
+    this.loadVideoUrls();
   }
 
   private ensureOutputDirectory(): void {
     if (!existsSync(this.outputDir)) {
       mkdirSync(this.outputDir, { recursive: true });
     }
+  }
+
+  /**
+   * Load video URLs to exclude them from media downloads
+   */
+  private loadVideoUrls(): void {
+    const videoFile = 'extracted_files/all-extracted-video-urls.txt';
+    if (existsSync(videoFile)) {
+      const content = readFileSync(videoFile, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+      lines.forEach(url => this.videoUrls.add(url.trim()));
+      console.log(`📹 Loaded ${this.videoUrls.size} video URLs to exclude`);
+    }
+  }
+
+  /**
+   * Filter out video URLs from media entries
+   */
+  private filterVideoUrls(entries: MediaEntry[]): MediaEntry[] {
+    const filtered = entries.filter(entry => !this.videoUrls.has(entry.url));
+    const removed = entries.length - filtered.length;
+    if (removed > 0) {
+      console.log(`🎬 Filtered out ${removed} video URLs from media entries`);
+    }
+    return filtered;
   }
 
   /**
@@ -314,13 +341,35 @@ async function main() {
   const downloader = new MediaDownloader();
   
   try {
-    // Load entries from the extracted media URLs file
-    const entries = downloader.loadEntriesFromFile();
+    // Check if we should use deduplicated URLs
+    const useDeduplicated = process.argv.includes('--deduplicated');
+    
+    let entries: MediaEntry[];
+    
+    if (useDeduplicated) {
+      console.log('🔄 Using deduplicated media URLs...');
+      entries = downloader.createDeduplicatedMapping();
+    } else {
+      console.log('📄 Using original media URLs...');
+      entries = downloader.loadEntriesFromFile();
+    }
     
     if (entries.length === 0) {
       console.log('❌ No media entries found to download');
       return;
     }
+    
+    console.log(`📊 Found ${entries.length} media entries to download`);
+    
+    // Filter out video URLs
+    entries = downloader.filterVideoUrls(entries);
+    
+    if (entries.length === 0) {
+      console.log('❌ No non-video media entries found to download');
+      return;
+    }
+    
+    console.log(`📊 After filtering: ${entries.length} non-video media entries to download`);
     
     // Download all media items
     const result = await downloader.downloadMedia(entries);
