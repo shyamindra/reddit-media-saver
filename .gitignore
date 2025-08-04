@@ -25,9 +25,18 @@ dist-ssr
 *.sqlite
 *.sqlite3
 
-# Downloads
+# Downloads and data files
 downloads/
 metadata/
+
+# Reddit data files
+reddit-links/*.csv
+extracted_files/
+
+# Task files
+tasks/create-prd.md
+tasks/generate-tasks.md
+tasks/past-context.md
 
 # Editor directories and files
 .vscode/*

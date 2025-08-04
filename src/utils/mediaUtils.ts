@@ -156,12 +156,12 @@ export class MediaUtils {
     title: string,
     subreddit: string,
     author: string,
-    mediaType: 'image' | 'video' | 'note',
+    mediaType: 'image' | 'video' | 'note' | 'text',
     extension: string,
     url?: string
   ): string {
     // For RedGIFs URLs, extract the original filename
-    if (url && url.includes('redgifs.com')) {
+    if (url && url.includes('redgifs.com') && mediaType === 'video') {
       const match = url.match(/https:\/\/media\.redgifs\.com\/([^\/]+)/);
       if (match) {
         let filename = match[1];
@@ -183,8 +183,12 @@ export class MediaUtils {
     // Add a short identifier to avoid conflicts and provide context
     const sanitizedSubreddit = subreddit.replace(/[<>:"/\\|?*]/g, '').substring(0, 20);
     
+    // Use the provided extension (which should be based on detected content type)
+    // This ensures HTML content gets saved as .txt, not .mp4
+    const finalExtension = extension || '.txt';
+    
     // Use format: title_subreddit.extension
-    return `${sanitizedTitle}_${sanitizedSubreddit}${extension}`;
+    return `${sanitizedTitle}_${sanitizedSubreddit}${finalExtension}`;
   }
 
   /**
