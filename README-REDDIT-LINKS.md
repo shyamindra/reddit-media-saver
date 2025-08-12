@@ -48,6 +48,70 @@ npm run process-links -- --test --limit 10
 npm run process-links -- --input custom-links
 ```
 
+## 🤖 **Auto Download Feature**
+
+### **What is Auto Download?**
+The auto download feature processes URLs in small batches with automatic delays to respect Reddit's rate limits and avoid overwhelming their servers.
+
+### **Key Features**
+- ✅ **Automatic Rate Limiting**: Processes URLs in configurable batches with delays
+- ✅ **Progress Tracking**: Shows detailed progress and statistics for each batch
+- ✅ **Resume Capability**: Can start from any offset to resume interrupted downloads
+- ✅ **Failed URL Tracking**: Automatically saves failed URLs for retry
+- ✅ **Flexible Configuration**: Customizable batch size, delays, and directories
+
+### **Basic Auto Download**
+```bash
+# Default auto download (20 URLs per batch, 20s delay)
+npm run auto-download
+
+# Custom batch size
+npm run auto-download --batch-size 10
+
+# Custom delay between batches
+npm run auto-download --delay 30
+
+# Start from specific URL index
+npm run auto-download --offset 100
+```
+
+### **Advanced Auto Download Options**
+```bash
+# Custom batch size and delay
+npm run auto-download --batch-size 15 --delay 25
+
+# Custom input and output directories
+npm run auto-download --input my-links --output my-downloads
+
+# Resume from URL 200 with custom settings
+npm run auto-download --offset 200 --batch-size 10 --delay 15
+
+# Show help
+npm run auto-download --help
+```
+
+### **Auto Download vs Manual Processing**
+
+| Feature | Auto Download | Manual Processing |
+|---------|---------------|-------------------|
+| **Rate Limiting** | ✅ Automatic delays | ❌ Manual control needed |
+| **Batch Processing** | ✅ Configurable batches | ❌ All URLs at once |
+| **Resume Capability** | ✅ Start from any offset | ❌ Must restart from beginning |
+| **Progress Tracking** | ✅ Detailed batch progress | ✅ Basic progress |
+| **Error Recovery** | ✅ Automatic failed URL tracking | ✅ Manual retry needed |
+| **Large Downloads** | ✅ Recommended for 100+ URLs | ⚠️ May hit rate limits |
+
+### **When to Use Auto Download**
+- **Large Downloads**: 100+ URLs
+- **Rate Limit Concerns**: When you want to be respectful to Reddit's servers
+- **Resume Needs**: When you need to stop and resume downloads
+- **Production Use**: When downloading content regularly
+
+### **When to Use Manual Processing**
+- **Small Downloads**: < 50 URLs
+- **Quick Testing**: When you want immediate results
+- **Development**: When testing new features
+
 ## 📄 **CSV File Format**
 
 ### **Required Format**
@@ -76,6 +140,12 @@ npm run process-links:batch        # Batch processing mode
 npm run process-links:help         # Show help
 ```
 
+### **Auto Download Commands**
+```bash
+npm run auto-download              # Auto download with default settings
+npm run auto-download --help       # Show auto download help
+```
+
 ### **Batch Processing (Rate Limiting)**
 ```bash
 npm run process-links:batch20      # Process 20 URLs
@@ -89,10 +159,21 @@ npm run process-links:batch100     # Process 100 URLs
 --batch, -b             # Batch mode
 --limit <number>, -l    # Limit number of URLs
 --offset <number>, -o   # Start from this URL index (for rate limiting)
+--delay <number>, -d    # Delay in milliseconds between batches
 --input <dir>, -i       # Input directory
 --output <dir>, -out    # Output directory
 --retry, -r             # Retry failed downloads
 --help, -h              # Show help
+```
+
+### **Auto Download Options**
+```bash
+--batch-size <number>, -b    # Batch size (default: 20)
+--delay <seconds>, -d        # Delay between batches (default: 20)
+--offset <number>, -o        # Start from this URL index (default: 0)
+--input <dir>, -i            # Input directory (default: reddit-links)
+--output <dir>, -out         # Output directory (default: downloads)
+--help, -h                   # Show help
 ```
 
 ### **Utility Commands**
@@ -115,6 +196,10 @@ npm run debug-api                 # Debug Reddit API
 - ✅ Failed download retry system
 - ✅ Command line options and modes
 - ✅ Error handling and logging
+- ✅ **Auto download with rate limiting**
+- ✅ **Batch processing with delays**
+- ✅ **Resume capability from any offset**
+- ✅ **Manual processing with configurable delays**
 
 ### **📁 Content Organization**
 - **Images**: JPG, PNG, WebP files → `downloads/Images/`
@@ -133,6 +218,7 @@ npm run debug-api                 # Debug Reddit API
 - Use `--offset` and `--limit` to control batch size
 - Script shows next batch command for easy continuation
 - Built-in 1-second delay between requests
+- **Auto download: Configurable delays between batches**
 
 ## 🛠 **Technical Details**
 
@@ -160,11 +246,13 @@ npm run debug-api                 # Debug Reddit API
 - **Small batch (20 URLs)**: ~1-2 minutes
 - **Medium batch (100 URLs)**: ~5-10 minutes
 - **Large batch (1000+ URLs)**: ~1-2 hours
+- **Auto download (1000 URLs)**: ~2-3 hours (with delays)
 
 ### **Rate Limiting**
 - 1 second delay between requests (respectful to Reddit)
 - Automatic retry on rate limit errors
 - User-Agent header for API compliance
+- **Auto download: Configurable delays between batches (default: 20s)**
 
 ## 🔍 **Troubleshooting**
 
@@ -241,6 +329,18 @@ npm run process-links -- --offset 40 --limit 20
 npm run process-links -- --offset 60 --limit 20
 ```
 
+### **Example 5: Rate Limiting with Delay**
+```bash
+# Process 20 URLs with 5-second delay
+npm run process-links -- --limit 20 --delay 5000
+
+# Process 10 URLs with 10-second delay
+npm run process-links -- --limit 10 --delay 10000
+
+# Process 15 URLs from offset 100 with 3-second delay
+npm run process-links -- --offset 100 --limit 15 --delay 3000
+```
+
 ### **Example 5: Custom Directories**
 ```bash
 # Use custom input and output directories
@@ -253,6 +353,21 @@ npm run process-links -- --input my-links --output my-downloads
 npm run retry-failed
 ```
 
+### **Example 7: Auto Download**
+```bash
+# Default auto download
+npm run auto-download
+
+# Custom auto download settings
+npm run auto-download --batch-size 15 --delay 25
+
+# Resume auto download from URL 100
+npm run auto-download --offset 100
+
+# Auto download with custom directories
+npm run auto-download --input my-links --output my-downloads
+```
+
 ## 🎯 **Success Criteria**
 - [x] Process 100+ URLs successfully
 - [x] Organize content in correct folders
@@ -262,6 +377,9 @@ npm run retry-failed
 - [x] Handle errors gracefully
 - [x] Command line interface
 - [x] Multiple processing modes
+- [x] **Auto download with rate limiting**
+- [x] **Batch processing with delays**
+- [x] **Resume capability**
 
 ## 📚 **Related Documentation**
 - [CURRENT_STATUS.md](./CURRENT_STATUS.md) - Current project status

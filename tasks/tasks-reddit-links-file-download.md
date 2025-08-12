@@ -173,6 +173,40 @@ Implement a simple feature to download Reddit content from a text file containin
   - [x] Add Gifs folder to pattern matching
   - [x] Support GIF organization by patterns
 
+## Phase 9: Auto Download System (NEW)
+
+### Task 9.1: Create Auto Download Script
+- [x] **Create `src/scripts/autoDownload.ts`**
+  - [x] Add automatic batch processing with configurable delays
+  - [x] Add resume capability from any URL offset
+  - [x] Add detailed progress tracking and batch statistics
+  - [x] Add failed URL tracking for retry functionality
+  - [x] Add command line options for batch size, delays, and directories
+
+### Task 9.2: Auto Download Features
+- [x] **Implement rate limiting**
+  - [x] Configurable delays between batches (default: 20s)
+  - [x] Configurable batch sizes (default: 20 URLs)
+  - [x] Automatic progress tracking and statistics
+- [x] **Add resume functionality**
+  - [x] Start from any URL index with `--offset`
+  - [x] Preserve failed URLs for retry
+  - [x] Show next batch command for easy continuation
+- [x] **Add comprehensive help system**
+  - [x] Detailed help with examples
+  - [x] Command line option documentation
+  - [x] Usage examples and best practices
+
+### Task 9.3: Integration with Existing System
+- [x] **Integrate with existing services**
+  - [x] Use `FileInputService` for CSV processing
+  - [x] Use `ContentDownloadService` for content downloading
+  - [x] Use existing error handling and logging
+- [x] **Add npm scripts**
+  - [x] Add `auto-download` script to package.json
+  - [x] Add help command for auto download
+  - [x] Document auto download usage
+
 ## Implementation Notes
 
 ### File Structure
@@ -213,9 +247,12 @@ key3,https://www.reddit.com/r/AskReddit/comments/ghi789/comment/abc123/
 5. **File System Error** - Log and continue
 
 ### Success Criteria
-- [ ] Process 100+ URLs successfully
-- [ ] Organize content in correct folders
-- [ ] Generate meaningful filenames
-- [ ] Provide clear summary report
-- [ ] Support retry functionality
-- [ ] Handle errors gracefully 
+- [x] Process 100+ URLs successfully
+- [x] Organize content in correct folders
+- [x] Generate meaningful filenames
+- [x] Provide clear summary report
+- [x] Support retry functionality
+- [x] Handle errors gracefully
+- [x] Auto download with rate limiting
+- [x] Batch processing with delays
+- [x] Resume capability from any offset 

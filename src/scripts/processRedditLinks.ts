@@ -6,6 +6,7 @@ interface CliOptions {
   mode: 'full' | 'test' | 'batch';
   limit?: number;
   offset?: number;
+  delay?: number;
   inputDir?: string;
   outputDir?: string;
   retry?: boolean;
@@ -21,6 +22,7 @@ async function main() {
   console.log(`📋 Mode: ${options.mode}`);
   if (options.limit) console.log(`📊 Limit: ${options.limit} URLs`);
   if (options.offset) console.log(`📍 Offset: ${options.offset} URLs`);
+  if (options.delay) console.log(`⏱️  Delay: ${options.delay}ms between batches`);
   if (options.inputDir) console.log(`📁 Input: ${options.inputDir}`);
   if (options.outputDir) console.log(`📁 Output: ${options.outputDir}`);
   console.log('');
@@ -84,10 +86,20 @@ async function main() {
       
       console.log(`\n📁 Downloaded content saved to: ${options.outputDir || 'downloads'}/`);
       
-      // Show next batch info
+      // Show next batch info with delay if specified
       const nextOffset = (options.offset || 0) + summary.total;
       if (nextOffset < result.valid.length) {
-        console.log(`\n🔄 Next batch: npm run process-links -- --offset ${nextOffset} --limit ${options.limit || 20}`);
+        let nextCommand = `npm run process-links -- --offset ${nextOffset} --limit ${options.limit || 20}`;
+        if (options.delay) {
+          nextCommand += ` --delay ${options.delay}`;
+        }
+        console.log(`\n🔄 Next batch: ${nextCommand}`);
+      }
+      
+      // Apply delay if specified
+      if (options.delay && options.delay > 0) {
+        console.log(`\n⏳ Waiting ${options.delay}ms before next batch...`);
+        await new Promise(resolve => setTimeout(resolve, options.delay));
       }
     }
 
@@ -136,6 +148,14 @@ function parseCommandLineArgs(): CliOptions {
           i++; // Skip next argument
         }
         break;
+      case '--delay':
+      case '-d':
+        const delay = parseInt(args[i + 1]);
+        if (!isNaN(delay)) {
+          options.delay = delay;
+          i++; // Skip next argument
+        }
+        break;
       case '--input':
       case '-i':
         options.inputDir = args[i + 1];
@@ -180,6 +200,7 @@ Options:
   --batch, -b             Batch mode (processes all URLs)
   --limit <number>, -l    Limit number of URLs to process
   --offset <number>, -o   Start from this URL index (for rate limiting)
+  --delay <number>, -d    Delay in milliseconds between batches
   --input <dir>, -i       Input directory (default: reddit-links)
   --output <dir>, -out    Output directory (default: downloads)
   --retry, -r             Retry failed downloads
@@ -198,6 +219,11 @@ Rate Limiting Examples:
   npm run process-links --offset 20 --limit 20       # URLs 20-40
   npm run process-links --offset 40 --limit 20       # URLs 40-60
   npm run process-links --offset 60 --limit 20       # URLs 60-80
+
+Delay Examples:
+  npm run process-links --limit 20 --delay 5000      # Process 20 URLs, wait 5s
+  npm run process-links --limit 10 --delay 10000     # Process 10 URLs, wait 10s
+  npm run process-links --offset 100 --limit 15 --delay 3000  # Process 15 URLs from offset 100, wait 3s
 
 Modes:
   full    - Process all URLs (default)
