@@ -98,24 +98,31 @@ async function autoDownload() {
     // Final summary
     console.log('\n🎉 AUTO DOWNLOAD COMPLETE!');
     console.log('📊 Final Summary:');
-    console.log(`   Total processed: ${urlsToProcess.length}`);
-    console.log(`   Total successful: ${totalSuccessful}`);
-    console.log(`   Total failed: ${totalFailed}`);
-    console.log(`   Success rate: ${(totalSuccessful / urlsToProcess.length * 100).toFixed(1)}%`);
-    
+    console.log(`   Total URLs: ${urlsToProcess.length}`);
+    console.log(`   Successful: ${totalSuccessful}`);
+    console.log(`   Failed: ${totalFailed}`);
+    console.log(`   Success Rate: ${((totalSuccessful / urlsToProcess.length) * 100).toFixed(1)}%`);
+
     // Save failed URLs for retry
     if (allFailedUrls.length > 0) {
-      const failedUrlsContent = allFailedUrls.join('\n');
-      writeFileSync('failed-downloads.txt', failedUrlsContent, 'utf-8');
+      writeFileSync('failed-downloads.txt', allFailedUrls.join('\n'), 'utf8');
       console.log(`\n📝 Failed URLs saved to: failed-downloads.txt`);
-      console.log('   You can retry these URLs with: npm run retry-failed');
+      console.log(`🔄 Run 'npm run retry-failed' to retry failed downloads`);
     }
+
+    // Process text files for video extraction
+    console.log('\n🔍 Processing text files for video extraction...');
+    const textFileResult = await downloadService.processTextFilesForVideos();
     
-    console.log(`\n📁 Downloaded content saved to: ${options.outputDir || 'downloads'}/`);
-    console.log('\n✨ Auto download complete!');
-    
+    if (textFileResult.downloaded > 0) {
+      console.log(`\n✅ Video extraction complete: ${textFileResult.downloaded} videos downloaded from text files`);
+    } else {
+      console.log(`\nℹ️  No videos found in text files`);
+    }
+
+    console.log('\n🚀 All processing complete!');
   } catch (error) {
-    console.error('❌ Error in auto download:', error);
+    console.error('❌ Auto download failed:', error);
     process.exit(1);
   }
 }

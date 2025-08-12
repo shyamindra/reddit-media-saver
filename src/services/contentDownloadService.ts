@@ -254,6 +254,7 @@ export class ContentDownloadService {
       const contentType = response.headers['content-type'] || '';
       const mediaInfo = this.detectMediaTypeFromResponse(url, contentType, response.data);
       
+      // Generate filename with the CORRECT extension based on detected content type
       const filename = MediaUtils.generateFilename(title, subreddit, 'unknown', mediaInfo.type, mediaInfo.extension || '', url);
       
       let outputPath: string;
@@ -279,6 +280,9 @@ export class ContentDownloadService {
         if (url.includes('redgifs.com')) {
           console.log(`🔍 Detected HTML content from RedGIFs URL, attempting to extract video...`);
           const videoResult = await this.tryExtractVideoFromHtml(htmlContent, url, title, subreddit, 0);
+          if (videoResult.success) {
+            return videoResult;
+          }
         } else if (url.includes('v.redd.it')) {
           console.log(`🔍 Detected HTML content from Reddit URL, attempting to extract video...`);
           const videoResult = await this.tryExtractVideoFromHtml(htmlContent, url, title, subreddit, 0);
@@ -873,5 +877,115 @@ export class ContentDownloadService {
     }
 
     return summary;
+  }
+
+  /**
+   * Process text files in Notes directory and extract videos from HTML content
+   */
+  async processTextFilesForVideos(): Promise<{ processed: number; videosFound: number; downloaded: number }> {
+    const notesDir = join(this.outputDir, 'Notes');
+    const videosDir = join(this.outputDir, 'Videos');
+    
+    try {
+      const fs = require('fs');
+      const files = fs.readdirSync(notesDir);
+      const textFiles = files.filter((file: string) => file.endsWith('.txt'));
+      
+      if (textFiles.length === 0) {
+        console.log('✅ No text files found in Notes directory');
+        return { processed: 0, videosFound: 0, downloaded: 0 };
+      }
+      
+      console.log(`🔍 Processing ${textFiles.length} text files for video extraction...`);
+      
+      let processed = 0;
+      let videosFound = 0;
+      let downloaded = 0;
+      
+      for (const file of textFiles) {
+        const filePath = join(notesDir, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        
+        if (this.isHtmlOrTextContent(Buffer.from(content))) {
+          const videoUrls = this.extractVideoUrlsFromHtml(content, file);
+          
+          if (videoUrls.length > 0) {
+            console.log(`📄 ${file}: Found ${videoUrls.length} video URL(s)`);
+            videosFound += videoUrls.length;
+            
+            for (let i = 0; i < videoUrls.length; i++) {
+              const url = videoUrls[i];
+              const filename = this.generateVideoFilename(url, i);
+              const outputPath = join(videosDir, filename);
+              
+              try {
+                const response = await axios.get(url, {
+                  responseType: 'arraybuffer',
+                  headers: { 'User-Agent': this.userAgent },
+                  timeout: 30000
+                });
+                
+                fs.writeFileSync(outputPath, response.data);
+                const fileSize = (response.data.length / 1024 / 1024).toFixed(2);
+                console.log(`✅ Downloaded: ${filename} (${fileSize} MB)`);
+                downloaded++;
+                
+                // Small delay between downloads
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              } catch (error) {
+                console.error(`❌ Failed to download ${url}: ${error}`);
+              }
+            }
+          }
+        }
+        
+        processed++;
+      }
+      
+      console.log(`\n📊 Text file processing summary:`);
+      console.log(`   📄 Files processed: ${processed}`);
+      console.log(`   🎬 Video URLs found: ${videosFound}`);
+      console.log(`   ✅ Videos downloaded: ${downloaded}`);
+      
+      return { processed, videosFound, downloaded };
+    } catch (error) {
+      console.error(`❌ Error processing text files: ${error}`);
+      return { processed: 0, videosFound: 0, downloaded: 0 };
+    }
+  }
+
+  /**
+   * Generate filename for video from URL
+   */
+  private generateVideoFilename(url: string, index: number): string {
+    if (url.includes('redgifs.com')) {
+      const match = url.match(/https:\/\/media\.redgifs\.com\/([^\/]+)/);
+      if (match) {
+        let filename = match[1];
+        if (filename.endsWith('.mp4')) {
+          filename = filename.slice(0, -4);
+        }
+        return `${filename}.mp4`;
+      }
+    }
+    
+    if (url.includes('v.redd.it')) {
+      const match = url.match(/https:\/\/v\.redd\.it\/([a-zA-Z0-9]+)/);
+      if (match) {
+        return `reddit_${match[1]}.mp4`;
+      }
+    }
+    
+    if (url.includes('packaged-media.redd.it')) {
+      const match = url.match(/https:\/\/packaged-media\.redd\.it\/([a-zA-Z0-9]+)\/pb\/m2-res_([0-9]+)p\.mp4/);
+      if (match) {
+        return `reddit_packaged_${match[1]}_${match[2]}p.mp4`;
+      }
+    }
+    
+    // Fallback
+    const urlObj = new URL(url);
+    const pathname = urlObj.pathname.split('/').pop() || 'video';
+    return `extracted_${index}_${pathname}`;
   }
 } 
