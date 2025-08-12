@@ -31,7 +31,24 @@ A Reddit media saver app to login to Reddit and download all media, sort and sav
 
 ## 🚨 **CURRENT ISSUES IDENTIFIED**
 
-### **Critical Issue: Electron ES Module Problem**
+### **Critical Issue: OAuth Authentication Network Error**
+- **Problem**: `Network Error` during token exchange in OAuth flow
+- **Root Cause**: Direct Reddit API calls failing due to CORS/network issues
+- **Status**: In progress - debugging OAuth flow
+- **Impact**: Users cannot authenticate with Reddit
+- **Latest**: Changed from proxy to direct API calls, but getting network errors
+
+### **OAuth Flow Issues**
+- **Problem**: 403 "Blocked" errors initially, then 404 "Not Found", now Network Error
+- **Root Cause**: Reddit API rejecting requests due to User-Agent policy and endpoint issues
+- **Status**: Partially fixed - User-Agent header added, but network errors persist
+- **Impact**: Authentication flow completely broken
+- **Progress**: 
+  - ✅ Fixed User-Agent header requirement
+  - ✅ Switched from proxy to direct API calls
+  - ❌ Still getting network errors
+
+### **Electron ES Module Problem**
 - **Problem**: `Dynamic require of "fs" is not supported` error in Electron
 - **Root Cause**: Using `require('fs')` in ES module context
 - **Status**: Partially fixed - need to rebuild and test
@@ -69,13 +86,16 @@ A Reddit media saver app to login to Reddit and download all media, sort and sav
   - [ ] **Task 2.4.2**: Add `save-file` IPC handler for file saving operations
   - [ ] **Task 2.4.3**: Test file operations in Electron environment
 
-### **Phase 3: Authentication Flow Fixes** (NOT STARTED)
-- [ ] **Task 3.1**: Test OAuth flow in browser with CORS proxy
-- [ ] **Task 3.2**: Implement OAuth flow specifically for Electron
-- [ ] **Task 3.3**: Create unified authentication service
-- [ ] **Task 3.4**: Handle different storage mechanisms (localStorage vs Electron storage)
-- [ ] **Task 3.5**: Add proper token refresh logic
-- [ ] **Task 3.6**: Implement logout functionality
+### **Phase 3: Authentication Flow Fixes** (IN PROGRESS)
+- [x] **Task 3.1**: Test OAuth flow in browser with CORS proxy
+- [x] **Task 3.2**: Fixed User-Agent header requirement for Reddit API
+- [x] **Task 3.3**: Switched from proxy to direct API calls
+- [ ] **Task 3.4**: Fix Network Error during token exchange
+- [ ] **Task 3.5**: Implement OAuth flow specifically for Electron
+- [ ] **Task 3.6**: Create unified authentication service
+- [ ] **Task 3.7**: Handle different storage mechanisms (localStorage vs Electron storage)
+- [ ] **Task 3.8**: Add proper token refresh logic
+- [ ] **Task 3.9**: Implement logout functionality
 
 ### **Phase 4: API Integration & CORS Solutions** (NOT STARTED)
 - [ ] **Task 4.1**: Test Reddit API calls through proxy
@@ -130,26 +150,32 @@ A Reddit media saver app to login to Reddit and download all media, sort and sav
 
 ## 🔧 **IMMEDIATE NEXT STEPS**
 
-### **Priority 1: Fix Electron Issues**
+### **Priority 1: Fix OAuth Authentication Network Error** (CRITICAL)
+1. **Debug Network Error** during token exchange
+   - Check if Reddit API endpoint is accessible
+   - Verify client credentials are correct
+   - Test with different User-Agent strings
+2. **Investigate CORS issues** with direct API calls
+3. **Consider alternative approaches**:
+   - Try different OAuth endpoints
+   - Test with different request headers
+   - Verify network connectivity to Reddit
+
+### **Priority 2: Fix Electron Issues**
 1. **Rebuild Electron app** after ES module fixes
 2. **Test Electron startup** and verify no more `fs` errors
 3. **Verify dev server connection** in Electron
 4. **Run comprehensive tests** in Electron environment
 
-### **Priority 2: Implement Missing IPC Handlers**
+### **Priority 3: Implement Missing IPC Handlers**
 1. **Add `select-directory` handler** in main process
 2. **Add `save-file` handler** in main process
 3. **Test file operations** in Electron
 
-### **Priority 3: Complete Content Service**
+### **Priority 4: Complete Content Service**
 1. **Integrate download service** with ContentService
 2. **Implement progress tracking** and event emission
 3. **Test download functionality** in both environments
-
-### **Priority 4: Test Browser Functionality**
-1. **Test OAuth flow** in browser with CORS proxy
-2. **Verify Reddit API calls** work through proxy
-3. **Test authentication** and token handling
 
 ### **Priority 5: Integration Testing**
 1. **Test complete authentication flow** in both environments
@@ -159,13 +185,15 @@ A Reddit media saver app to login to Reddit and download all media, sort and sav
 ## 📁 **KEY FILES MODIFIED**
 
 ### **Configuration Files**
-- `vite.config.ts` - Added CORS proxy configuration
+- `vite.config.ts` - Added CORS proxy configuration, updated OAuth proxy settings
 - `build-electron.cjs` - Enhanced build process with better error handling
 - `env.example` - Created environment documentation
 
 ### **Source Files**
 - `src/main.ts` - Fixed ES module issues, added comprehensive error handling
-- `src/services/redditApi.ts` - Updated to use proxy endpoints in development
+- `src/services/redditApi.ts` - Updated OAuth flow, added User-Agent headers, switched to direct API calls
+- `src/components/AuthCallback.tsx` - Added comprehensive debugging for OAuth callback
+- `src/components/Auth.tsx` - Added debugging and re-authentication functionality
 - `src/App.tsx` - Added debugging utilities and environment testing
 - `src/utils/envTest.ts` - Environment variable testing utility
 - `src/utils/debugTest.ts` - Basic debugging utility
@@ -184,6 +212,15 @@ A Reddit media saver app to login to Reddit and download all media, sort and sav
 - [x] Environment variables load correctly
 - [x] Comprehensive debugging tools in place
 
+### **Phase 3 Success Criteria** (IN PROGRESS - CRITICAL)
+- [x] OAuth flow initiates correctly
+- [x] Reddit authorization page loads
+- [x] User can approve the app
+- [x] Authorization code is received
+- [ ] Token exchange completes successfully (Network Error blocking this)
+- [ ] Access token is stored correctly
+- [ ] User can successfully authenticate with Reddit
+
 ### **Phase 2.4 Success Criteria** (NEW TARGET)
 - [ ] All IPC handlers implemented in main process
 - [ ] File operations work in Electron
@@ -193,11 +230,6 @@ A Reddit media saver app to login to Reddit and download all media, sort and sav
 - [ ] ContentService download logic fully implemented
 - [ ] Progress tracking works correctly
 - [ ] Download events emit properly
-
-### **Phase 3 Success Criteria** (TARGET)
-- [ ] OAuth authentication works in both browser and Electron
-- [ ] Token storage works correctly in both environments
-- [ ] User can successfully authenticate with Reddit
 
 ### **Phase 4 Success Criteria** (TARGET)
 - [ ] Reddit API calls work through proxy
@@ -229,15 +261,48 @@ cat .env
 
 ## 📝 **NOTES FOR NEXT SESSION**
 
-1. **Current Status**: Phase 1 & 2 mostly complete, need to fix remaining Electron ES module issues
-2. **Main Issue**: Electron still has `fs` require problem despite fixes
-3. **New Priority**: Implement missing IPC handlers and complete ContentService integration
-4. **Environment**: All tools and debugging utilities are in place
-5. **Browser**: Should be working with CORS proxy
-6. **TODOs Found**: 6 specific TODO items across 3 files that need implementation
+### **Current Authentication Issue Analysis**
+1. **OAuth Flow Progress**: 
+   - ✅ Authorization URL generation works
+   - ✅ Reddit authorization page loads correctly
+   - ✅ User can approve the app
+   - ✅ Authorization code is received in callback
+   - ❌ Token exchange fails with Network Error
+
+2. **Network Error Investigation Needed**:
+   - Check if Reddit API endpoint `https://www.reddit.com/api/v1/access_token` is accessible
+   - Verify client credentials are being sent correctly
+   - Test with different User-Agent strings
+   - Consider if CORS is blocking the direct API call
+
+3. **Recent Changes Made**:
+   - Fixed User-Agent header requirement (was causing 403 "Blocked" errors)
+   - Switched from proxy to direct API calls (was causing 404 "Not Found" errors)
+   - Added comprehensive debugging to track the exact failure point
+
+### **Next Session Priorities**
+1. **CRITICAL**: Fix Network Error during token exchange
+   - Test Reddit API endpoint accessibility
+   - Verify client credentials format
+   - Try alternative OAuth approaches if needed
+2. **HIGH**: Complete authentication flow once Network Error is resolved
+3. **MEDIUM**: Continue with Electron fixes and IPC handlers
+4. **LOW**: Complete ContentService integration
+
+### **Environment Status**
+- ✅ All debugging tools in place
+- ✅ Environment variables configured
+- ✅ CORS proxy configured (though not currently used)
+- ✅ Comprehensive logging added to OAuth flow
+
+### **Files with Recent Changes**
+- `src/services/redditApi.ts` - Updated OAuth flow, added User-Agent headers
+- `src/components/AuthCallback.tsx` - Added comprehensive debugging
+- `src/components/Auth.tsx` - Added re-authentication functionality
+- `vite.config.ts` - Updated proxy configuration
 
 ---
 
 **Last Updated**: Current session
-**Status**: Phase 1 & 2 Complete, Phase 2.4 & 5 Ready to Start
-**Next Session Goal**: Fix remaining Electron issues, implement missing IPC handlers, and complete ContentService integration 
+**Status**: Phase 3 Authentication in Progress, Network Error blocking completion
+**Next Session Goal**: Fix Network Error in OAuth token exchange, then complete authentication flow 

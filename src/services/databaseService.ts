@@ -421,5 +421,5 @@ export class DatabaseManager {
 // Export singleton instance
 export const databaseManager = new DatabaseManager({
   dbPath: './data/reddit-saver.db',
-  verbose: process.env.NODE_ENV === 'development'
+  verbose: import.meta.env.DEV
 }); 

@@ -312,13 +312,13 @@ class Logger {
 
 // Create default logger instance
 export const logger = new Logger({
-  level: process.env.NODE_ENV === 'development' ? LogLevel.DEBUG : LogLevel.INFO,
+  level: import.meta.env.DEV ? LogLevel.DEBUG : LogLevel.INFO,
   logDir: './logs',
   maxFiles: 5,
   maxSize: '10mb',
   enableConsole: true,
   enableFile: true,
-  enableDebug: process.env.NODE_ENV === 'development'
+  enableDebug: import.meta.env.DEV
 });
 
 export default logger; 

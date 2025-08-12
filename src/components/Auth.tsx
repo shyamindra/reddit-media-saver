@@ -35,9 +35,72 @@ export const Auth: React.FC<AuthProps> = ({ config, onAuthSuccess, onAuthError }
 
   const handleLogin = async () => {
     try {
+      // Clear any cached authentication data
+      console.log('🧹 Clearing cached auth data...');
+      localStorage.removeItem('reddit_token');
+      localStorage.removeItem('reddit_user');
+      
+      console.log('🚀 Starting Reddit OAuth...');
       const authUrl = await authService.startAuth();
+      console.log('🔗 Auth URL:', authUrl);
+      console.log('🔍 Auth URL type:', typeof authUrl);
+      console.log('🔍 Auth URL length:', authUrl.length);
+      
       // Open Reddit OAuth page in a new window
-      window.open(authUrl, 'reddit-auth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      const popup = window.open(authUrl, 'reddit-auth', 'width=600,height=700,scrollbars=yes,resizable=yes');
+      
+      if (!popup) {
+        console.error('❌ Failed to open popup - popup blocked');
+        return;
+      }
+      
+      console.log('📱 Popup opened successfully');
+      console.log('🔗 OAuth URL opened:', authUrl);
+      
+      // Check if popup is still open after a short delay
+      setTimeout(() => {
+        if (popup.closed) {
+          console.error('❌ Popup closed immediately - this indicates an issue with the OAuth URL');
+        } else {
+          console.log('✅ Popup is still open - user should be able to complete login');
+        }
+      }, 2000);
+      
+      // Add event listener to detect when popup closes
+      const checkClosed = setInterval(() => {
+        if (popup && popup.closed) {
+          console.log('🔒 Popup closed, checking auth state...');
+          clearInterval(checkClosed);
+          
+          // Wait a moment for any async operations to complete
+          setTimeout(() => {
+            // Check if authentication was successful
+            const currentState = authService.getState();
+            console.log('📊 Current auth state:', currentState);
+            
+            if (currentState.isAuthenticated) {
+              console.log('✅ Authentication successful!');
+            } else {
+              console.log('❌ Authentication failed or cancelled');
+              console.log('🔍 Checking if popup was blocked or closed too quickly...');
+              
+              // Try to detect if popup was blocked
+              try {
+                const testPopup = window.open('about:blank', 'test', 'width=100,height=100');
+                if (!testPopup) {
+                  console.error('❌ Popup blocked by browser - please allow popups for this site');
+                } else {
+                  testPopup.close();
+                  console.log('✅ Popups are allowed - the issue is likely with the OAuth flow');
+                }
+              } catch (e) {
+                console.error('❌ Error testing popup:', e);
+              }
+            }
+          }, 1000); // Increased timeout to 1 second
+        }
+      }, 500); // Check more frequently
+      
     } catch (error) {
       console.error('Failed to start authentication:', error);
     }
@@ -96,6 +159,20 @@ export const Auth: React.FC<AuthProps> = ({ config, onAuthSuccess, onAuthError }
         </div>
 
         <div className="space-y-4">
+          <div className="bg-gray-50 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-sm text-gray-600">Token Status</p>
+                <p className="text-xs text-gray-500">Click to re-authenticate</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-red-600 hover:text-red-800 px-3 py-1 rounded border border-red-200 hover:border-red-300"
+              >
+                Re-authenticate
+              </button>
+            </div>
+          </div>
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="flex justify-between items-center">
               <span className="text-sm font-medium text-gray-700">Account Status</span>

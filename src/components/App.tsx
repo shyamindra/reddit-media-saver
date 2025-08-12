@@ -9,16 +9,11 @@ import { authService } from '../services/authService';
 import type { AuthConfig } from '../types/reddit';
 import { contentService } from '../services/contentService';
 import { StorageService } from '../services/storageService';
-import type { StorageConfig } from '../types';
+import type { StorageConfig, AppConfig } from '../types';
 import { databaseManager } from '../services/databaseService';
 import { logger } from '../utils/logger';
 import type { AuthState } from '../types/reddit';
 import type { ContentItem } from '../types';
-
-export interface AppConfig {
-  auth: AuthConfig;
-  storage: StorageConfig;
-}
 
 interface AppProps {
   config: AppConfig;
@@ -74,20 +69,27 @@ export const App: React.FC<AppProps> = ({ config }) => {
 
   const handleAuthSuccess = async (user: any) => {
     try {
+      console.log('🔄 Starting content fetch for user:', user.name);
       setIsLoading(true);
       setError(null);
       
       // Fetch saved content
+      console.log('📡 Fetching saved content...');
       const result = await contentService.fetchAllSavedContent(user.name, { limit: 50 });
+      console.log('✅ Content fetched successfully:', result.items.length, 'items');
       setContentItems(result.items);
       
       // Save content to database
+      console.log('💾 Saving content to database...');
       for (const item of result.items) {
         await databaseManager.saveContent(item);
       }
+      console.log('✅ Content saved to database');
       
+      console.log('🔄 Switching to content view');
       setCurrentView('content');
     } catch (err) {
+      console.error('❌ Failed to fetch content:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch content');
     } finally {
       setIsLoading(false);
@@ -162,7 +164,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
                 </span>
               </div>
               <div className="ml-4 flex items-center space-x-2">
-                {process.env.NODE_ENV === 'development' && (
+                {import.meta.env.DEV && (
                   <button
                     onClick={() => setShowDebugPanel(true)}
                     className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1 rounded border"
@@ -186,6 +188,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
   };
 
   const renderContent = () => {
+    console.log('🎯 Rendering content - View:', currentView, 'Items:', contentItems.length, 'Loading:', isLoading, 'Error:', error);
     if (isLoading) {
       return (
         <div className="flex items-center justify-center min-h-screen">
@@ -240,6 +243,7 @@ export const App: React.FC<AppProps> = ({ config }) => {
         );
 
       case 'content':
+        console.log('📱 Rendering ContentBrowser with', contentItems.length, 'items');
         return (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <ContentBrowser

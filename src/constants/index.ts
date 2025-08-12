@@ -4,7 +4,7 @@ export const REDDIT_AUTH_URL = 'https://www.reddit.com/api/v1/authorize';
 export const REDDIT_TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
 
 // OAuth2 Configuration
-export const REDDIT_CLIENT_ID = process.env.REDDIT_CLIENT_ID || '';
+export const REDDIT_CLIENT_ID = import.meta.env.VITE_REDDIT_CLIENT_ID || '';
 export const REDDIT_REDIRECT_URI = 'reddit-saver://auth';
 export const REDDIT_SCOPE = 'history read';
 
