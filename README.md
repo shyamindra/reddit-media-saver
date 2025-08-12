@@ -113,6 +113,22 @@ npm run lint:fix         # Fix ESLint issues
 npm run format           # Format code with Prettier
 ```
 
+## Configuration System
+
+The project uses a centralized configuration system for all extraction settings. The configuration file `src/config/extraction.config.ts` contains:
+
+### **Configurable Settings**
+- **File paths**: All input/output file locations
+- **Timing settings**: Delays between requests, batch delays, retry delays
+- **Batch settings**: Batch size and save intervals
+- **User agent**: HTTP request user agent
+
+### **Key Features**
+- **Centralized configuration**: All settings in one place
+- **Incremental saving**: Progress saved every N iterations
+- **Robust extraction**: Continues from where it left off if interrupted
+- **Automatic cleanup**: Removes temporary files after completion
+
 ## File Organization Commands
 
 The project includes several powerful scripts for organizing downloaded content, managing video files, and maintaining a clean file structure.
@@ -154,6 +170,29 @@ npm run ytdlp-download -- --deduplicated
 - **`deduplicate-urls`**: Removes duplicate URLs and selects highest quality versions
 - **`ytdlp-download`**: Downloads videos from the extracted URL list
 - **`ytdlp-download --deduplicated`**: Downloads with post titles as filenames
+
+### Media Processing (Images, GIFs, Text)
+
+```bash
+# Extract media URLs from CSV files (excluding videos)
+npm run extract-media-urls
+
+# Deduplicate media URLs and select best quality
+npm run deduplicate-media-urls
+
+# Download media with custom naming
+npm run download-media
+
+# Combined extraction and download (alternative)
+npm run extract-and-download-media
+```
+
+**What each command does:**
+
+- **`extract-media-urls`**: Extracts image, GIF, and text URLs from Reddit saved links CSV files
+- **`deduplicate-media-urls`**: Removes duplicate media URLs and selects best quality versions
+- **`download-media`**: Downloads media using post titles as filenames
+- **`extract-and-download-media`**: Combined extraction and download in one step
 
 ### Reddit Links Processing
 
@@ -208,6 +247,9 @@ npm run extract-videos-from-text
 
 # Auto download functionality
 npm run auto-download
+
+# Clean up temporary files after extraction
+npm run cleanup-temp-files
 ```
 
 **What each command does:**
@@ -218,6 +260,7 @@ npm run auto-download
 - **`fix-video-files`**: General video file maintenance
 - **`extract-videos-from-text`**: Extract video URLs from text files
 - **`auto-download`**: Automatic download functionality
+- **`cleanup-temp-files`**: Clean up temporary files after extraction
 
 ### Analysis & Debugging
 
@@ -475,9 +518,9 @@ npm run test-video-download
 
 After running the extraction workflow, you'll have:
 
-- **`all-extracted-video-urls.txt`** - Complete list with post titles
-- **`deduplicated-video-urls.txt`** - Clean, high-quality URLs
-- **`failed-extraction-requests.txt`** - Failed requests for retry
+- **`extracted_files/all-extracted-video-urls.txt`** - Complete list with post titles
+- **`extracted_files/deduplicated-video-urls.txt`** - Clean, high-quality URLs
+- **`extracted_files/failed_requests/failed-extraction-requests.txt`** - Failed requests for retry
 - **`downloads/Videos/`** - Downloaded video files
 - **`downloads/Videos/[celebrity-name]/`** - Organized celebrity folders
 - **`downloads/Videos/other/`** - Miscellaneous videos
@@ -496,6 +539,164 @@ After running the extraction workflow, you'll have:
 #### Memory Issues with Large Datasets
 - Use batch processing with `--limit` and `--offset`
 - Process in smaller chunks to avoid memory issues
+
+## Media URL Extraction & Download Workflow
+
+This section explains how to extract and download GIFs, images, and text content from Reddit saved links CSV files, excluding videos.
+
+### Prerequisites
+
+1. **Reddit Saved Links CSV Files**: Place your Reddit saved links CSV files in the `reddit-links/` directory
+2. **CSV Format**: Files should contain Reddit URLs in one of these formats:
+   ```csv
+   # Format 1: key, URL
+   post1,https://www.reddit.com/r/subreddit/comments/id/title/
+   post2,https://www.reddit.com/r/subreddit/comments/id/title/
+   
+   # Format 2: id, permalink
+   1,https://www.reddit.com/r/subreddit/comments/id/title/
+   2,https://www.reddit.com/r/subreddit/comments/id/title/
+   ```
+
+### Step 1: Extract Media URLs from Reddit Posts
+
+```bash
+# Extract media URLs (images, GIFs, text) from all CSV files in reddit-links/
+npm run extract-media-urls
+```
+
+**What this does:**
+- Reads all CSV files from `reddit-links/` directory
+- Processes each Reddit URL to extract media content
+- **Excludes videos** (uses `all-extracted-video-urls.txt` to skip video URLs)
+- Supports multiple media platforms:
+  - **Images**: i.redd.it, i.imgur.com, direct image URLs
+  - **GIFs**: gfycat.com, direct GIF URLs
+  - **Text**: Reddit posts and comments
+- Saves results to:
+  - `all-extracted-media-urls.txt` - Complete list with post titles
+  - `failed-media-extraction-requests.txt` - Failed requests for retry
+
+**Example Output:**
+```
+📹 Loaded 1999 video URLs to exclude
+📁 Found 2 CSV files in reddit-links/
+📄 Processing: saved_posts.csv
+📄 Processing: saved_comments.csv
+📝 Processing post 1/100: "Amazing Reddit Image"
+✅ Extracted 3 media URLs
+📝 Processing post 2/100: "Another Great GIF"
+✅ Extracted 1 media URL
+...
+💾 Saved 150 posts with media URLs to all-extracted-media-urls.txt
+```
+
+### Step 2: Deduplicate and Select Best Quality
+
+```bash
+# Remove duplicates and select highest quality versions
+npm run deduplicate-media-urls
+```
+
+**What this does:**
+- Removes duplicate media URLs
+- Selects highest quality versions (PNG > WebP > JPG > GIF)
+- Prioritizes direct image URLs over embedded ones
+- Saves deduplicated list to `deduplicated-media-urls.txt`
+
+**Example Output:**
+```
+📄 Loaded 450 media URLs from all-extracted-media-urls.txt
+🔍 Processing 450 URLs...
+✅ Found 320 unique media items
+💾 Saved deduplicated URLs to deduplicated-media-urls.txt
+```
+
+### Step 3: Download Media
+
+```bash
+# Download media using post titles as filenames
+npm run download-media
+```
+
+**What this does:**
+- Downloads media from `all-extracted-media-urls.txt`
+- Uses Reddit post titles as filenames
+- Handles duplicate filenames by appending numbers
+- Saves to `downloads/Media/` directory
+- Supports different file types:
+  - **Images**: .jpg, .png, .webp
+  - **GIFs**: .gif
+  - **Text**: .txt (contains URL and metadata)
+
+**Example Output:**
+```
+📥 Downloading: Amazing Reddit Image (image)
+   📁 Filename: Amazing Reddit Image.jpg
+   🔗 URL: https://i.redd.it/example.jpg
+📥 Downloading: Another Great GIF (gif)
+   📁 Filename: Another Great GIF.gif
+   🔗 URL: https://gfycat.com/example
+...
+🎉 Media download completed!
+📊 Total items: 320
+✅ Successful: 298
+❌ Failed: 22
+📁 Files saved to: downloads/Media/
+```
+
+### Complete Media Workflow Example
+
+Here's a complete example of extracting and downloading media from Reddit saved links:
+
+```bash
+# 1. Extract media URLs from CSV files (excluding videos)
+npm run extract-media-urls
+
+# 2. Deduplicate and select best quality
+npm run deduplicate-media-urls
+
+# 3. Download media with custom naming
+npm run download-media
+
+# 4. Organize downloaded files (future feature)
+# npm run organize-media
+```
+
+### Advanced Options
+
+#### Rate Limiting
+
+The scripts include built-in rate limiting:
+- **2 seconds** between each request
+- **3 minutes pause** after every 50 requests
+- **4 minutes pause** for retry attempts
+
+#### Retry Failed Operations
+
+```bash
+# Retry failed URL extractions
+npm run retry-failed-extraction
+
+# Failed downloads are automatically saved to failed-media-downloads.txt
+```
+
+### Output Files
+
+After running the media extraction workflow, you'll have:
+
+- **`extracted_files/all-extracted-media-urls.txt`** - Complete list with post titles
+- **`extracted_files/deduplicated-media-urls.txt`** - Clean, high-quality URLs
+- **`extracted_files/failed_requests/failed-media-extraction-requests.txt`** - Failed requests for retry
+- **`downloads/Media/`** - Downloaded media files
+- **`extracted_files/failed_requests/failed-media-downloads.txt`** - Failed downloads for retry
+
+### Media Types Supported
+
+- **Images**: JPG, PNG, WebP from various sources
+- **GIFs**: Animated GIFs from Gfycat and direct URLs
+- **Text**: Reddit posts and comments (saved as .txt files)
+- **Excluded**: Videos (handled by separate video workflow)
 
 ## Troubleshooting
 

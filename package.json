@@ -59,7 +59,13 @@
     "ytdlp-download": "tsx src/scripts/ytdlpDownloader.ts",
     "extract-all-videos": "tsx src/scripts/extractAllVideoUrls.ts",
     "retry-failed-extraction": "tsx src/scripts/retryFailedExtraction.ts",
-    "deduplicate-urls": "tsx src/scripts/deduplicateAndFilterUrls.ts"
+    "deduplicate-urls": "tsx src/scripts/deduplicateAndFilterUrls.ts",
+    "extract-and-download-media": "tsx src/scripts/extractAndDownloadMedia.ts",
+    "extract-media-urls": "tsx src/scripts/extractMediaUrls.ts",
+    "download-media": "tsx src/scripts/downloadMedia.ts",
+    "deduplicate-media-urls": "tsx src/scripts/deduplicateMediaUrls.ts",
+    "test-media-extraction": "tsx src/scripts/testMediaExtraction.ts",
+    "cleanup-temp-files": "tsx src/scripts/cleanupTempFiles.ts"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
