@@ -63,6 +63,7 @@
     "extract-and-download-media": "tsx src/scripts/extractAndDownloadMedia.ts",
     "extract-media-urls": "tsx src/scripts/extractMediaUrls.ts",
     "download-media": "tsx src/scripts/downloadMedia.ts",
+    "download-media-deduplicated": "tsx src/scripts/downloadMedia.ts --deduplicated",
     "deduplicate-media-urls": "tsx src/scripts/deduplicateMediaUrls.ts",
     "test-media-extraction": "tsx src/scripts/testMediaExtraction.ts",
     "cleanup-temp-files": "tsx src/scripts/cleanupTempFiles.ts"

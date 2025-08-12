@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { writeFileSync, mkdirSync } from 'fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { MediaUtils } from '../utils/mediaUtils';
 import type { RedditUrlInfo } from './fileInputService';
@@ -23,12 +23,14 @@ export interface DownloadSummary {
 export class ContentDownloadService {
   private outputDir = 'downloads';
   private userAgent = 'RedditSaverApp/1.0.0 (by /u/reddit_user)';
+  private videoUrls = new Set<string>();
 
   constructor(outputDir?: string) {
     if (outputDir) {
       this.outputDir = outputDir;
     }
     this.ensureOutputDirectories();
+    this.loadVideoUrls();
   }
 
   /**
@@ -49,6 +51,32 @@ export class ContentDownloadService {
         // Directory might already exist
       }
     });
+  }
+
+  /**
+   * Load video URLs to exclude them from media downloads
+   */
+  private loadVideoUrls(): void {
+    const videoFile = 'extracted_files/all-extracted-video-urls.txt';
+    if (existsSync(videoFile)) {
+      const content = readFileSync(videoFile, 'utf8');
+      const lines = content.split('\n').filter(line => line.trim() && !line.startsWith('#'));
+      lines.forEach(url => this.videoUrls.add(url.trim()));
+      console.log(`📹 Loaded ${this.videoUrls.size} video URLs to exclude`);
+    }
+  }
+
+  /**
+   * Check if a URL is a video that should be skipped
+   */
+  private isVideoUrl(url: string): boolean {
+    return this.videoUrls.has(url) || 
+           url.includes('v.redd.it') || 
+           url.includes('redgifs.com') || 
+           url.includes('v3.redgifs.com') ||
+           url.includes('.mp4') ||
+           url.includes('.webm') ||
+           url.includes('.mov');
   }
 
   /**
@@ -101,18 +129,23 @@ export class ContentDownloadService {
         return mediaResult;
       }
 
-      // If no media found, save as text content
-      const textContent = selftext || 'No content available';
-      if (textContent === 'No content available') {
-        // Try to extract media URLs from the post data
-        const extractedMediaUrl = this.extractMediaUrlFromPost(postData);
-        if (extractedMediaUrl) {
-          console.log(`🔍 Found media URL in post data: ${extractedMediaUrl}`);
-          return await this.downloadMedia(extractedMediaUrl, title, subreddit);
-        }
+      // If no media found, check if we should save text content
+      const textContent = selftext || '';
+      
+      // Only save text content if it's meaningful (not empty and not just "No content available")
+      if (textContent && textContent.trim() && textContent !== 'No content available') {
+        return await this.saveTextContent(title, subreddit, textContent);
       }
-
-      return await this.saveTextContent(title, subreddit, textContent);
+      
+      // If no meaningful text content, try to extract non-video media URLs
+      const extractedMediaUrl = this.extractMediaUrlFromPost(postData);
+      if (extractedMediaUrl && !this.isVideoUrl(extractedMediaUrl)) {
+        console.log(`🔍 Found media URL in post data: ${extractedMediaUrl}`);
+        return await this.downloadMedia(extractedMediaUrl, title, subreddit);
+      }
+      
+      // If we get here, there's no meaningful content to save
+      return { success: false, error: 'No meaningful content found (video-only post or empty content)' };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch post';
       return { success: false, error: errorMessage };
@@ -276,6 +309,12 @@ export class ContentDownloadService {
         // Check if this is HTML content that might contain video URLs
         const htmlContent = response.data.toString('utf8');
         
+        // Check if this is an error response (like Access Denied)
+        if (htmlContent.includes('<Error>') || htmlContent.includes('Access Denied') || htmlContent.includes('AccessDenied')) {
+          console.log(`❌ Received error response, skipping: ${url}`);
+          return { success: false, error: 'Access denied or error response received' };
+        }
+        
         // If this looks like a video URL that returned HTML, try to extract video
         if (url.includes('redgifs.com')) {
           console.log(`🔍 Detected HTML content from RedGIFs URL, attempting to extract video...`);
@@ -291,22 +330,19 @@ export class ContentDownloadService {
             // Video extraction succeeded, return the video result
             return videoResult;
           } else {
-            // Video extraction failed, save as text file
-            console.log(`⚠️  Video extraction failed, saving as text file`);
-            writeFileSync(outputPath, htmlContent, 'utf8');
-            console.log(`✅ Saved text content: ${filename} (${this.formatFileSize(response.data.length)})`);
-            return {
-              success: true,
-              filePath: outputPath,
-              contentType: contentType,
-              title,
-              subreddit
-            };
+            // Video extraction failed, don't save error content
+            console.log(`⚠️  Video extraction failed, skipping content`);
+            return { success: false, error: 'Video extraction failed' };
           }
         } else {
-          // Regular text content, save as-is
-          writeFileSync(outputPath, htmlContent, 'utf8');
-          console.log(`✅ Saved text content: ${filename} (${this.formatFileSize(response.data.length)})`);
+          // Regular text content, only save if it's meaningful (not too small)
+          if (htmlContent.length > 50) {
+            writeFileSync(outputPath, htmlContent, 'utf8');
+            console.log(`✅ Saved text content: ${filename} (${this.formatFileSize(response.data.length)})`);
+          } else {
+            console.log(`⚠️  Text content too small, likely error message, skipping`);
+            return { success: false, error: 'Text content too small, likely error message' };
+          }
         }
       } else {
         // Save binary content as-is
@@ -773,46 +809,36 @@ export class ContentDownloadService {
     const urls: string[] = [];
     
     // Primary URL
-    if (postData.url && this.isMediaUrl(postData.url)) {
+    if (postData.url && this.isMediaUrl(postData.url) && !this.isVideoUrl(postData.url)) {
       urls.push(postData.url);
     }
 
-    // Media metadata
-    if (postData.media?.reddit_video?.fallback_url) {
-      urls.push(postData.media.reddit_video.fallback_url);
-    }
-
-    // Preview images (highest quality first)
+    // Preview images (highest quality first) - Skip video URLs
     if (postData.preview?.images) {
       for (const image of postData.preview.images) {
-        if (image.source?.url) {
+        if (image.source?.url && !this.isVideoUrl(image.source.url)) {
           urls.push(image.source.url);
         }
         if (image.resolutions) {
           // Get highest resolution
           const highestRes = image.resolutions[image.resolutions.length - 1];
-          if (highestRes?.url) {
+          if (highestRes?.url && !this.isVideoUrl(highestRes.url)) {
             urls.push(highestRes.url);
           }
         }
       }
     }
 
-    // Gallery images
+    // Gallery images - Skip video URLs
     if (postData.gallery_data?.items) {
       for (const item of postData.gallery_data.items) {
         if (item.media_id && postData.media_metadata?.[item.media_id]?.s) {
           const mediaInfo = postData.media_metadata[item.media_id].s;
-          if (mediaInfo.u) {
+          if (mediaInfo.u && !this.isVideoUrl(mediaInfo.u)) {
             urls.push(mediaInfo.u);
           }
         }
       }
-    }
-
-    // Secure media
-    if (postData.secure_media?.reddit_video?.fallback_url) {
-      urls.push(postData.secure_media.reddit_video.fallback_url);
     }
 
     // Remove duplicates and return
@@ -823,23 +849,13 @@ export class ContentDownloadService {
    * Extract a single media URL from post data (fallback method)
    */
   private extractMediaUrlFromPost(postData: any): string | null {
-    // Try media metadata first
-    if (postData.media?.reddit_video?.fallback_url) {
-      return postData.media.reddit_video.fallback_url;
-    }
-
-    // Try secure media
-    if (postData.secure_media?.reddit_video?.fallback_url) {
-      return postData.secure_media.reddit_video.fallback_url;
-    }
-
-    // Try preview images
-    if (postData.preview?.images?.[0]?.source?.url) {
+    // Try preview images (skip videos)
+    if (postData.preview?.images?.[0]?.source?.url && !this.isVideoUrl(postData.preview.images[0].source.url)) {
       return postData.preview.images[0].source.url;
     }
 
-    // Try URL if it looks like media
-    if (postData.url && this.isMediaUrl(postData.url)) {
+    // Try URL if it looks like media (but not video)
+    if (postData.url && this.isMediaUrl(postData.url) && !this.isVideoUrl(postData.url)) {
       return postData.url;
     }
 
@@ -858,6 +874,7 @@ export class ContentDownloadService {
     };
 
     console.log(`🚀 Starting download of ${urlInfos.length} URLs...\n`);
+    console.log(`⚙️  Using delays: 2 seconds between requests, 90 seconds after every 100 requests\n`);
 
     for (let i = 0; i < urlInfos.length; i++) {
       const urlInfo = urlInfos[i];
@@ -872,8 +889,14 @@ export class ContentDownloadService {
         summary.failedUrls.push(urlInfo.url);
       }
 
-      // Small delay to be respectful to Reddit's servers
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // 2-second delay between requests
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 90-second delay after every 100 requests
+      if ((i + 1) % 100 === 0 && i < urlInfos.length - 1) {
+        console.log(`⏸️  Pausing for 90 seconds after batch ${Math.floor((i + 1) / 100)}...`);
+        await new Promise(resolve => setTimeout(resolve, 90000));
+      }
     }
 
     return summary;
