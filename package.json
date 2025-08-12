@@ -5,7 +5,14 @@
   "description": "A desktop application for downloading and organizing saved Reddit content",
   "type": "module",
   "main": "dist-electron/main.js",
-  "keywords": ["reddit", "media", "downloader", "electron", "react", "typescript"],
+  "keywords": [
+    "reddit",
+    "media",
+    "downloader",
+    "electron",
+    "react",
+    "typescript"
+  ],
   "author": "Your Name",
   "license": "MIT",
   "scripts": {
@@ -30,7 +37,19 @@
     "dist": "npm run build && npm run build:electron && electron-builder --publish=never",
     "clean": "rm -rf dist dist-electron coverage",
     "prebuild": "npm run clean",
-    "predev": "npm run type-check"
+    "predev": "npm run type-check",
+    "process-links": "tsx src/scripts/processRedditLinks.ts",
+    "process-links:test": "tsx src/scripts/processRedditLinks.ts --test",
+    "process-links:batch": "tsx src/scripts/processRedditLinks.ts --batch",
+    "process-links:help": "tsx src/scripts/processRedditLinks.ts --help",
+    "process-links:batch20": "tsx src/scripts/processRedditLinks.ts --limit 20",
+    "process-links:batch50": "tsx src/scripts/processRedditLinks.ts --limit 50",
+    "process-links:batch100": "tsx src/scripts/processRedditLinks.ts --limit 100",
+    "debug-api": "tsx src/scripts/debugRedditApi.ts",
+    "retry-failed": "tsx src/scripts/retryFailedDownloads.ts",
+    "organize-downloads": "tsx src/scripts/organizeDownloads.ts",
+    "organize-downloads-advanced": "tsx src/scripts/organizeDownloadsAdvanced.ts",
+    "move-gifs": "tsx src/scripts/moveGifsToGifsFolder.ts"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
@@ -76,6 +95,8 @@
     "prettier": "^3.6.2",
     "tailwindcss": "^4.1.11",
     "ts-jest": "^29.4.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.20.3",
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.35.1",
     "vite": "^7.0.4",
