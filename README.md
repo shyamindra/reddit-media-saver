@@ -171,31 +171,7 @@ npm run ytdlp-download -- --deduplicated
 - **`ytdlp-download`**: Downloads videos from the extracted URL list
 - **`ytdlp-download --deduplicated`**: Downloads with post titles as filenames
 
-### ContentDownloadService (Recommended for Media Downloads)
-
-The ContentDownloadService provides the best approach for downloading media content directly from Reddit URLs:
-
-```bash
-# Process Reddit links with enhanced ContentDownloadService
-npm run process-links                    # Process all URLs
-npm run process-links -- --limit 500     # Process first 500 URLs
-npm run process-links -- --offset 500 --limit 500  # Process next 500 URLs
-npm run process-links:test               # Test with small batch
-npm run process-links:batch              # Process in batches
-npm run process-links:help               # Show all options
-```
-
-**Key Features**:
-- ✅ **Uses Reddit JSON API** - Gets actual post data, not HTML
-- ✅ **Downloads real content** - Images, GIFs, and actual text content
-- ✅ **Quality selection** - Gets highest quality versions
-- ✅ **Video filtering** - Automatically excludes videos using existing video URL list
-- ✅ **Rate limiting** - 2-second delays between requests, 90-second pauses after 100 requests
-- ✅ **Error handling** - No error messages saved as text files
-- ✅ **Custom naming** - Uses Reddit post titles as filenames
-- ✅ **Separate folders** - Images, GIFs, and text saved to appropriate folders
-
-### Media Processing (Images, GIFs, Text) - Alternative Approach
+### Media Processing (Images, GIFs, Text)
 
 ```bash
 # Extract media URLs from CSV files (excluding videos)
