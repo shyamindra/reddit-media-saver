@@ -1,10 +1,5 @@
-import { appendFileSync, writeFileSync } from 'fs';
-import { existsSync } from 'fs';
-import { createYtdlpCookiesStrategy } from '../adapters/ytdlpCookiesStrategy';
 import { loadAppConfig } from '../config/appConfig';
-import { runBatch } from '../download/downloadRunner';
-import type { LinkBatchItem } from '../download/types';
-import { FileInputService } from '../services/fileInputService';
+import { runLinkBatchDownloadJob } from '../workflows/linkBatchDownloadJob';
 import { getYtdlpVersion, resolveYtdlpBinary } from '../utils/ytdlp';
 
 interface CliOptions {
@@ -119,76 +114,6 @@ Examples:
 `);
 }
 
-function dedupeUrls<T extends { url: string }>(items: T[]): T[] {
-  const seen = new Set<string>();
-  return items.filter((item) => {
-    if (seen.has(item.url)) return false;
-    seen.add(item.url);
-    return true;
-  });
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function appendFailedDownloads(filePath: string, urls: string[]): void {
-  if (urls.length === 0) return;
-  const payload = urls.join('\n') + '\n';
-  if (existsSync(filePath)) {
-    appendFileSync(filePath, payload, 'utf8');
-  } else {
-    writeFileSync(filePath, payload, 'utf8');
-  }
-}
-
-function toLinkBatch(
-  items: ReturnType<typeof FileInputService.processRedditUrlsFromCsv>['valid'],
-): LinkBatchItem[] {
-  return items.map((item) => ({ url: item.url, type: item.type }));
-}
-
-async function runSingleBatch(
-  options: CliOptions,
-  links: LinkBatchItem[],
-  batchLabel: string,
-): Promise<{ total: number; successful: number; failed: number; failedUrls: string[] }> {
-  if (links.length === 0) {
-    console.log('❌ No URLs to process.');
-    return { total: 0, successful: 0, failed: 0, failedUrls: [] };
-  }
-
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`📦 ${batchLabel}: ${links.length} URLs`);
-  console.log(`${'='.repeat(60)}\n`);
-
-  const strategy = createYtdlpCookiesStrategy({
-    browser: options.browser,
-    archiveFile: options.archiveFile,
-    perUrlTimeoutMs: options.perUrlTimeoutMs,
-  });
-
-  const summary = await runBatch(
-    links,
-    {
-      browser: options.browser,
-      archiveFile: options.archiveFile,
-      delayMs: options.delayMs,
-      batchPauseEvery: options.batchPauseEvery,
-      batchPauseMs: options.batchPauseMs,
-      perUrlTimeoutMs: options.perUrlTimeoutMs,
-    },
-    strategy,
-  );
-
-  console.log('\n📊 Batch Summary');
-  console.log(`   Total:      ${summary.total}`);
-  console.log(`   Successful: ${summary.successful}`);
-  console.log(`   Failed:     ${summary.failed}`);
-
-  return summary;
-}
-
 async function main(): Promise<void> {
   const options = parseArgs();
   const ytdlpBin = resolveYtdlpBinary();
@@ -207,88 +132,7 @@ async function main(): Promise<void> {
   }
   console.log('\n⚠️  Close Firefox before starting so yt-dlp can read your cookies.\n');
 
-  const { valid } = FileInputService.processRedditUrlsFromCsv(options.inputDir);
-  const allUnique = dedupeUrls(valid);
-  const postCount = allUnique.filter((u) => u.type === 'post' || u.type === 'media').length;
-  const commentCount = allUnique.filter((u) => u.type === 'comment').length;
-
-  console.log('📋 URL inventory:');
-  console.log(`   Posts:    ${postCount}`);
-  console.log(`   Comments: ${commentCount}`);
-  console.log(`   Total:    ${allUnique.length} unique URLs`);
-  if (options.postsOnly) {
-    console.log(`   Mode:     posts only (${postCount} URLs)`);
-  }
-  console.log('');
-
-  let urls = allUnique.sort((a, b) => {
-    const order = { post: 0, media: 1, comment: 2, invalid: 3 };
-    return order[a.type] - order[b.type];
-  });
-
-  if (options.postsOnly) {
-    urls = urls.filter((u) => u.type === 'post' || u.type === 'media');
-  }
-
-  const linkBatch = toLinkBatch(urls);
-  const totalAvailable = linkBatch.length;
-  const batchSize = options.limit ?? 50;
-  const startOffset = options.offset ?? 0;
-  const batchesToRun = options.chainBatches;
-
-  let totalSuccessful = 0;
-  let totalFailed = 0;
-  let totalProcessed = 0;
-  const allFailedUrls: string[] = [];
-
-  for (let batchIndex = 0; batchIndex < batchesToRun; batchIndex++) {
-    const batchOffset = startOffset + batchIndex * batchSize;
-    if (batchOffset >= totalAvailable) {
-      console.log(`\n✅ All URLs processed (reached end at offset ${batchOffset}).`);
-      break;
-    }
-
-    if (batchIndex > 0) {
-      console.log(
-        `\n🧊 Cooling down ${options.cooldownBetweenBatchesMs / 1000}s before next batch...\n`,
-      );
-      await sleep(options.cooldownBetweenBatchesMs);
-    }
-
-    const batchLinks = linkBatch.slice(batchOffset, batchOffset + batchSize);
-    const summary = await runSingleBatch(
-      options,
-      batchLinks,
-      `Batch ${batchIndex + 1} (offset ${batchOffset}, ${batchLinks.length} URLs)`,
-    );
-
-    totalSuccessful += summary.successful;
-    totalFailed += summary.failed;
-    totalProcessed += summary.total;
-    allFailedUrls.push(...summary.failedUrls);
-  }
-
-  if (batchesToRun > 1) {
-    console.log('\n📊 Chain Summary');
-    console.log(`   Total processed: ${totalProcessed}`);
-    console.log(`   Successful: ${totalSuccessful}`);
-    console.log(`   Failed:     ${totalFailed}`);
-  }
-
-  if (allFailedUrls.length > 0) {
-    const failedFile = loadAppConfig().paths.failedDownloadsFile;
-    appendFailedDownloads(failedFile, allFailedUrls);
-    console.log(`\n📝 Failed URLs appended to: ${failedFile}`);
-  }
-
-  const nextOffset = startOffset + totalProcessed;
-  if (nextOffset < totalAvailable) {
-    const postsOnlyFlag = options.postsOnly ? ' --posts-only' : '';
-    console.log(
-      `\n🔄 Next batch: npm run download-firefox --${postsOnlyFlag} --offset ${nextOffset} --limit ${batchSize}`,
-    );
-    console.log(`   (${totalAvailable - nextOffset} URLs remaining of ${totalAvailable})`);
-  }
+  await runLinkBatchDownloadJob(options);
 
   console.log('\n✨ Done!');
 }

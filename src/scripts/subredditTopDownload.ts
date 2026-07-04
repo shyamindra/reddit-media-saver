@@ -1,46 +1,14 @@
-import { firefox, type BrowserContext, type Page } from 'playwright';
-import { spawn } from 'child_process';
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'fs';
-import { homedir } from 'os';
 import { join } from 'path';
-import { fetchListing } from '../services/redditFetchService';
-import { cleanupCookieFile } from '../utils/firefoxCookies';
+import { loadAppConfig } from '../config/appConfig';
+import { runSubredditTopWorkflow } from '../workflows/subredditTopWorkflow';
+import type { SubredditTopWorkflowOptions } from '../workflows/subredditTopWorkflow';
 
-interface CliOptions {
-  subreddit: string;
-  sort: 'top' | 'hot' | 'new';
-  time: 'hour' | 'day' | 'week' | 'month' | 'year' | 'all';
-  limit: number;
-  method: 'json' | 'browser';
-  site: 'old' | 'new';
-  useFirefoxProfile: boolean;
-  headless: boolean;
-  scrapeOnly: boolean;
-  outputCsv: string;
-  delayMs: number;
+interface CliOptions extends SubredditTopWorkflowOptions {
   batchPauseEvery: number;
-  batchPauseMs: number;
-  perUrlTimeoutMs: number;
-  browser: string;
-}
-
-interface ScrapedPost {
-  url: string;
-  title: string;
-}
-
-function findFirefoxProfile(): string | null {
-  const profilesDir = join(homedir(), 'Library/Application Support/Firefox/Profiles');
-  if (!existsSync(profilesDir)) return null;
-
-  const candidates = readdirSync(profilesDir).filter(
-    (name: string) => name.includes('default') || name.endsWith('.default')
-  );
-  if (candidates.length === 0) return null;
-  return join(profilesDir, candidates[0]);
 }
 
 function parseArgs(): CliOptions {
+  const config = loadAppConfig();
   const args = process.argv.slice(2);
   const options: CliOptions = {
     subreddit: 'WatchItForThePlot',
@@ -53,11 +21,12 @@ function parseArgs(): CliOptions {
     headless: false,
     scrapeOnly: false,
     outputCsv: '',
-    delayMs: 8000,
-    batchPauseEvery: 15,
-    batchPauseMs: 180_000,
-    perUrlTimeoutMs: 120_000,
-    browser: 'firefox'
+    delayMs: config.batch.delayBetweenUrlsMs,
+    batchPauseEvery: config.batch.batchPauseEvery,
+    batchPauseMs: config.batch.batchPauseMs,
+    perUrlTimeoutMs: config.batch.perUrlTimeoutMs,
+    browser: 'firefox',
+    archiveFile: config.paths.downloadArchiveFile,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -118,7 +87,11 @@ function parseArgs(): CliOptions {
   }
 
   if (!options.outputCsv) {
-    options.outputCsv = join('reddit-links', 'subreddit-scraped', `${options.sort}-${options.subreddit}.csv`);
+    options.outputCsv = join(
+      'reddit-links',
+      'subreddit-scraped',
+      `${options.sort}-${options.subreddit}.csv`,
+    );
   }
 
   return options;
@@ -165,237 +138,6 @@ Examples:
 `);
 }
 
-function listingUrl(options: CliOptions): string {
-  const { subreddit, sort, time, limit, site } = options;
-  if (site === 'old') {
-    const params = new URLSearchParams({ limit: String(Math.min(limit, 100)), t: time });
-    return `https://old.reddit.com/r/${subreddit}/${sort}/?${params}`;
-  }
-  const params = new URLSearchParams({ t: time });
-  return `https://www.reddit.com/r/${subreddit}/${sort}/?${params}`;
-}
-
-async function dismissNsfwGate(page: Page): Promise<void> {
-  const selectors = [
-    'button:has-text("Yes")',
-    'button:has-text("Continue")',
-    'button:has-text("View NSFW")',
-    '#over18',
-    'a[data-click-id="over18"]'
-  ];
-
-  for (const selector of selectors) {
-    try {
-      const el = page.locator(selector).first();
-      if (await el.isVisible({ timeout: 2000 })) {
-        await el.click();
-        await page.waitForTimeout(1000);
-        console.log(`   ✅ Dismissed NSFW gate via: ${selector}`);
-        return;
-      }
-    } catch {
-      // try next selector
-    }
-  }
-}
-
-function extractPostsFromPage(page: Page): Promise<ScrapedPost[]> {
-  return page.$$eval('a[href*="/comments/"]', (anchors) => {
-    const seen = new Set<string>();
-    const posts: { url: string; title: string }[] = [];
-
-    for (const anchor of anchors) {
-      const href = anchor.href;
-      if (!href.includes('/comments/')) continue;
-      const match = href.match(/\/r\/[^/]+\/comments\/[^/]+/);
-      if (!match) continue;
-      const url = `https://www.reddit.com${match[0]}/`;
-      if (seen.has(url)) continue;
-      seen.add(url);
-      posts.push({ url, title: (anchor.textContent ?? '').trim() || url });
-    }
-
-    return posts;
-  });
-}
-
-async function scrapeOldReddit(page: Page, options: CliOptions): Promise<ScrapedPost[]> {
-  const collected = new Map<string, ScrapedPost>();
-  let pageNum = 1;
-  let url = listingUrl(options);
-
-  while (collected.size < options.limit) {
-    console.log(`\n📄 Loading page ${pageNum}: ${url}`);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-    await dismissNsfwGate(page);
-    await page.waitForTimeout(1500);
-
-    const posts = await extractPostsFromPage(page);
-    for (const post of posts) {
-      if (!collected.has(post.url)) {
-        collected.set(post.url, post);
-      }
-    }
-
-    console.log(`   Found ${posts.length} posts on page (${collected.size} unique total)`);
-    if (collected.size >= options.limit) break;
-
-    const nextButton = page.locator('span.next-button a, a[rel="nofollow next"]').first();
-    if (!(await nextButton.isVisible({ timeout: 2000 }).catch(() => false))) {
-      console.log('   No more pages.');
-      break;
-    }
-
-    const nextHref = await nextButton.getAttribute('href');
-    if (!nextHref) break;
-    url = nextHref.startsWith('http') ? nextHref : `https://old.reddit.com${nextHref}`;
-    pageNum++;
-  }
-
-  return [...collected.values()].slice(0, options.limit);
-}
-
-async function scrapeNewReddit(page: Page, options: CliOptions): Promise<ScrapedPost[]> {
-  const url = listingUrl(options);
-  console.log(`\n📄 Loading: ${url}`);
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await dismissNsfwGate(page);
-
-  const collected = new Map<string, ScrapedPost>();
-  let staleRounds = 0;
-
-  while (collected.size < options.limit && staleRounds < 5) {
-    const posts = await extractPostsFromPage(page);
-    const before = collected.size;
-    for (const post of posts) {
-      collected.set(post.url, post);
-    }
-
-    console.log(`   Collected ${collected.size} unique posts (scroll round)`);
-    if (collected.size >= options.limit) break;
-    if (collected.size === before) {
-      staleRounds++;
-    } else {
-      staleRounds = 0;
-    }
-
-    await page.evaluate(() => window.scrollBy(0, window.innerHeight * 2));
-    await page.waitForTimeout(2000);
-  }
-
-  return [...collected.values()].slice(0, options.limit);
-}
-
-async function scrapePosts(options: CliOptions): Promise<ScrapedPost[]> {
-  let context: BrowserContext | null = null;
-
-  try {
-    if (options.useFirefoxProfile) {
-      const profilePath = findFirefoxProfile();
-      if (!profilePath) {
-        throw new Error('Could not find Firefox profile. Close Firefox and try again, or omit --firefox-profile.');
-      }
-      console.log(`🦊 Using Firefox profile: ${profilePath}`);
-      console.log('   ⚠️  Firefox must be fully closed before scraping with --firefox-profile.\n');
-      context = await firefox.launchPersistentContext(profilePath, {
-        headless: options.headless
-      });
-    } else {
-      console.log('🦊 Launching Playwright Firefox (bundled)\n');
-      const browser = await firefox.launch({ headless: options.headless });
-      context = await browser.newContext({
-        userAgent:
-          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:128.0) Gecko/20100101 Firefox/128.0'
-      });
-    }
-
-    const page = context.pages()[0] ?? (await context.newPage());
-    const posts =
-      options.site === 'old' ? await scrapeOldReddit(page, options) : await scrapeNewReddit(page, options);
-
-    return posts;
-  } finally {
-    if (context) {
-      await context.close();
-      console.log('\n🔒 Browser closed.');
-    }
-  }
-}
-
-function writeCsv(posts: ScrapedPost[], outputPath: string): void {
-  const dir = join(process.cwd(), outputPath).replace(/\/[^/]+$/, '');
-  mkdirSync(dir, { recursive: true });
-
-  const lines = ['key,url,title'];
-  posts.forEach((post, i) => {
-    const key = `top${String(i + 1).padStart(3, '0')}`;
-    const escapedTitle = post.title.replace(/"/g, '""');
-    lines.push(`${key},${post.url},"${escapedTitle}"`);
-  });
-
-  const fullPath = join(process.cwd(), outputPath);
-  writeFileSync(fullPath, lines.join('\n') + '\n', 'utf8');
-  console.log(`\n📝 Saved ${posts.length} URLs to: ${outputPath}`);
-}
-
-async function downloadPosts(posts: ScrapedPost[], options: CliOptions): Promise<void> {
-  console.log('\n⚠️  Close Firefox before starting downloads so yt-dlp can read your cookies.\n');
-
-  const inputPath = options.outputCsv;
-
-  await new Promise<void>((resolve, reject) => {
-    const args = [
-      'run',
-      'download-firefox',
-      '--',
-      '--input',
-      inputPath,
-      '--posts-only',
-      '--limit',
-      String(posts.length),
-      '--delay',
-      String(options.delayMs),
-      '--batch-pause',
-      String(options.batchPauseEvery),
-      '--batch-pause-ms',
-      String(options.batchPauseMs)
-    ];
-
-    console.log(`🚀 Running: npm ${args.join(' ')}\n`);
-    const child = spawn('npm', args, {
-      stdio: 'inherit',
-      cwd: process.cwd(),
-      env: { ...process.env, npm_config_update_notifier: 'false' }
-    });
-    child.on('close', (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`download-firefox exited with code ${code}`));
-    });
-    child.on('error', reject);
-  });
-}
-
-async function discoverPosts(options: CliOptions): Promise<ScrapedPost[]> {
-  if (options.method === 'json') {
-    try {
-      return await fetchListing({
-        subreddit: options.subreddit,
-        sort: options.sort,
-        time: options.time,
-        limit: options.limit,
-        browser: options.browser
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error(`\n⚠️  JSON listing failed: ${message}`);
-      console.log('   Falling back to browser scraping...\n');
-      return scrapePosts({ ...options, method: 'browser' });
-    }
-  }
-
-  return scrapePosts(options);
-}
-
 async function main(): Promise<void> {
   const options = parseArgs();
 
@@ -410,30 +152,12 @@ async function main(): Promise<void> {
   if (options.scrapeOnly) console.log('   Mode:      scrape only');
   console.log('\n⚠️  Close Firefox before starting so cookies can be read.\n');
 
-  let posts: ScrapedPost[];
-  try {
-    posts = await discoverPosts(options);
-  } finally {
-    cleanupCookieFile();
-  }
+  await runSubredditTopWorkflow(options);
 
-  if (posts.length === 0) {
-    console.error('\n❌ No posts found. Try --method browser --firefox-profile, or browse the sub in Firefox first.');
-    process.exit(1);
-  }
-
-  console.log(`\n✅ Scraped ${posts.length} post URLs`);
-  posts.slice(0, 5).forEach((p, i) => console.log(`   ${i + 1}. ${p.title.substring(0, 70)}`));
-  if (posts.length > 5) console.log(`   ... and ${posts.length - 5} more`);
-
-  writeCsv(posts, options.outputCsv);
-
-  if (!options.scrapeOnly) {
-    await downloadPosts(posts, options);
-  } else {
+  if (options.scrapeOnly) {
     console.log('\n💡 To download later:');
     console.log(
-      `   npm run download-firefox -- --input ${options.outputCsv} --posts-only --limit ${posts.length}`
+      `   npm run download-firefox -- --input ${options.outputCsv} --posts-only --limit ${options.limit}`,
     );
   }
 
@@ -444,3 +168,5 @@ main().catch((error) => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
+
+export { main };
