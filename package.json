@@ -52,6 +52,8 @@
     "organize-downloads": "tsx src/scripts/organizeDownloads.ts",
     "organize-downloads-advanced": "tsx src/scripts/organizeDownloadsAdvanced.ts",
     "transcode-gifs": "tsx src/cli.ts repair transcode-gifs",
+    "compile-saved-remaining": "tsx src/scripts/compileSavedRemaining.ts",
+    "compile-partial-remaining": "tsx src/scripts/compilePartialSubRemaining.ts",
     "fix-corrupted-files": "tsx src/scripts/fixCorruptedFiles.ts"
   },
   "dependencies": {
