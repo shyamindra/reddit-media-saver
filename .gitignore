@@ -33,6 +33,11 @@ metadata/
 reddit-links/*.csv
 extracted_files/
 
+# Session cookies (never commit — exported at runtime from Firefox)
+*reddit*cookies*.txt
+.reddit-session-cookies.txt
+**/.reddit-session-cookies.txt
+
 # Task files
 tasks/create-prd.md
 tasks/generate-tasks.md
