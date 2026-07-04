@@ -42,6 +42,8 @@
     "subreddit-top": "tsx src/cli.ts subreddit-top",
     "subreddit-top:test": "tsx src/cli.ts subreddit-top --limit 5 --scrape-only",
     "queue": "tsx src/cli.ts queue",
+    "organize": "tsx src/cli.ts organize",
+    "repair": "tsx src/cli.ts repair",
     "download-firefox": "tsx src/cli.ts download",
     "download-firefox:test": "tsx src/cli.ts download --posts-only --limit 5",
     "download-subreddit-top": "tsx src/cli.ts subreddit-top",

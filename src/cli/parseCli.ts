@@ -2,7 +2,7 @@ import { join } from 'path';
 import { loadAppConfig } from '../config/appConfig';
 import type { LinkBatchDownloadJobOptions } from '../workflows/linkBatchDownloadJob';
 import { getHelpText } from './help';
-import type { CliCommand, QueueCliOptions, SubredditTopCliOptions } from './types';
+import type { CliCommand, OrganizeCliOptions, QueueCliOptions, RepairOperation, SubredditTopCliOptions } from './types';
 
 const DEFAULT_QUEUE_SUBREDDITS = [
   'softcorenights2',
@@ -244,6 +244,18 @@ function parseQueueArgs(args: string[]): QueueCliOptions {
   return options;
 }
 
+function parseOrganizeArgs(args: string[]): OrganizeCliOptions {
+  return { dryRun: args.includes('--dry-run') };
+}
+
+function parseRepairOperation(args: string[]): RepairOperation | null {
+  const operation = args[0];
+  if (operation === 'fix-corrupt' || operation === 'recover-html') {
+    return operation;
+  }
+  return null;
+}
+
 export function parseCli(argv: string[]): CliCommand {
   const args = [...argv];
 
@@ -279,9 +291,20 @@ export function parseCli(argv: string[]): CliCommand {
     case 'queue':
       return { type: 'queue', options: parseQueueArgs(subArgs) };
     case 'organize':
-      return { type: 'organize', passthrough: subArgs };
-    case 'repair':
-      return { type: 'repair', passthrough: subArgs };
+      return { type: 'organize', options: parseOrganizeArgs(subArgs) };
+    case 'repair': {
+      if (wantsHelp(subArgs) || subArgs.length === 0) {
+        return { type: 'help', scope: 'repair' };
+      }
+      const operation = parseRepairOperation(subArgs);
+      if (!operation) {
+        return {
+          type: 'unknown',
+          message: `Unknown repair operation "${subArgs[0]}".\n\n${getHelpText('repair')}`,
+        };
+      }
+      return { type: 'repair', operation };
+    }
     default:
       return {
         type: 'unknown',

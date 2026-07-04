@@ -3,6 +3,7 @@ import { runLinkBatchDownloadJob } from '../workflows/linkBatchDownloadJob';
 import { runSubredditQueue } from '../workflows/subredditQueueWorkflow';
 import { runSubredditTopWorkflow } from '../workflows/subredditTopWorkflow';
 import { chunk, waitForProcess } from '../utils/processUtils';
+import { executeRepairCommand, runOrganize } from '../repair/runRepair';
 import { getHelpText, printHelp } from './help';
 import type { CliCommand } from './types';
 
@@ -23,12 +24,21 @@ export async function executeCli(command: CliCommand): Promise<void> {
     case 'queue':
       await executeQueue(command.options);
       return;
-    case 'organize':
-      printHelp('organize');
+    case 'organize': {
+      const summary = runOrganize({ dryRun: command.options.dryRun });
+      console.log('\n📊 Organize Summary');
+      console.log(`   Total files:    ${summary.totalFiles}`);
+      console.log(`   Organized:      ${summary.organizedFiles}`);
+      console.log(`   Groups created: ${summary.groupsCreated}`);
       return;
-    case 'repair':
-      printHelp('repair');
+    }
+    case 'repair': {
+      const result = await executeRepairCommand({ operation: command.operation });
+      console.log('\n📊 Repair Summary');
+      console.log(`   Operation: ${result.operation}`);
+      console.log(`   Result:    ${JSON.stringify(result.summary)}`);
       return;
+    }
   }
 }
 

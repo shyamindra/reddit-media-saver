@@ -29,14 +29,14 @@ Orchestration that runs multiple subreddit listing + download jobs with concurre
 ## Output layout
 The on-disk folder structure under `downloads/` (Images, Videos, Gifs, Media, Notes) and naming conventions (`title_subreddit.ext`).
 
+## Repair
+Maintenance operations on already-downloaded files: organize by similarity, fix corrupted HTML-as-media, recover embedded video URLs from Notes. Module: `src/repair/`.
+
 ## Browser session
 Firefox (or other browser) cookies exported at runtime via yt-dlp for authenticated Reddit JSON access — no OAuth. Used by Reddit fetch and link resolution when `useCookies` is set. Session cookie file path comes from app config (`sessionCookieFile`); never committed to git.
 
 ## App config
 Single source of truth for paths, auth redirect URIs, batch delays, and user-agent strings.
-
-## Repair
-Maintenance operations on already-downloaded files: organize by similarity, fix corrupted HTML-as-media, recover embedded video URLs from Notes.
 
 ## Content index
 SQLite-backed metadata store for saved Reddit content (UI path). Distinct from on-disk output layout metadata JSON.

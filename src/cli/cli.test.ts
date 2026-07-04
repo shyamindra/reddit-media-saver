@@ -4,9 +4,24 @@ import { runLinkBatchDownloadJob } from '../workflows/linkBatchDownloadJob';
 import { runSubredditTopWorkflow } from '../workflows/subredditTopWorkflow';
 import { runSubredditQueue } from '../workflows/subredditQueueWorkflow';
 
+import { runOrganize } from '../repair/runRepair';
+import { executeRepairCommand } from '../repair/runRepair';
+
 jest.mock('../workflows/linkBatchDownloadJob');
 jest.mock('../workflows/subredditTopWorkflow');
 jest.mock('../workflows/subredditQueueWorkflow');
+jest.mock('../repair/runRepair', () => ({
+  runOrganize: jest.fn(() => ({ totalFiles: 0, organizedFiles: 0, groupsCreated: 0 })),
+  executeRepairCommand: jest.fn(async () => ({
+    operation: 'fix-corrupt',
+    summary: { fixed: 0, scanned: 0 },
+  })),
+  runFixCorrupt: jest.fn(),
+  runRecoverHtml: jest.fn(),
+}));
+
+const mockedOrganize = runOrganize as jest.MockedFunction<typeof runOrganize>;
+const mockedRepair = executeRepairCommand as jest.MockedFunction<typeof executeRepairCommand>;
 
 const mockedDownloadJob = runLinkBatchDownloadJob as jest.MockedFunction<
   typeof runLinkBatchDownloadJob
@@ -84,5 +99,21 @@ describe('executeCli', () => {
     expect(mockedQueue).toHaveBeenCalledWith(
       expect.objectContaining({ subreddits: ['a', 'b'], parallel: 2 }),
     );
+  });
+
+  it('routes organize subcommand to runOrganize', async () => {
+    const command = parseCli(['organize']);
+    await executeCli(command);
+
+    expect(mockedOrganize).toHaveBeenCalledTimes(1);
+    expect(mockedOrganize).toHaveBeenCalledWith({ dryRun: false });
+  });
+
+  it('routes repair fix-corrupt to executeRepairCommand', async () => {
+    const command = parseCli(['repair', 'fix-corrupt']);
+    await executeCli(command);
+
+    expect(mockedRepair).toHaveBeenCalledTimes(1);
+    expect(mockedRepair).toHaveBeenCalledWith({ operation: 'fix-corrupt' });
   });
 });

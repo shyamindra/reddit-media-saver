@@ -9,8 +9,8 @@ Subcommands:
   download         Download media from a CSV link batch (Firefox cookies + yt-dlp)
   subreddit-top    Scrape subreddit listing and download posts
   queue            Run multiple subreddit-top jobs in parallel waves
-  organize         Organize downloaded files (stub — see repair scripts)
-  repair           Fix corrupted downloads and transcode GIFs (stub until #15)
+  organize         Group downloaded files by filename similarity
+  repair           Fix corrupted media and recover videos from HTML notes
 
 Global:
   --help, -h       Show help for a subcommand
@@ -89,26 +89,31 @@ Options:
   --help, -h                      Show this help
 `;
 
-const ORGANIZE_HELP = `organize — file organization (stub until #15)
+const ORGANIZE_HELP = `organize — group downloads by filename similarity
 
-This subcommand will consolidate organize-downloads scripts in slice #15.
+Usage:
+  npx tsx src/cli.ts organize [options]
 
-For now, use legacy scripts directly:
-  npm run organize-downloads
-  npm run organize-downloads-advanced
-  npm run organize-videos-custom
-  npm run move-gifs
+Options:
+  --dry-run           Show grouping plan without moving files
+  --help, -h          Show this help
 `;
 
-const REPAIR_HELP = `repair — fix and transcode downloaded media (stub until #15)
+const REPAIR_HELP = `repair — fix corrupted downloads and recover embedded videos
 
-This subcommand will consolidate repair scripts in slice #15.
+Usage:
+  npx tsx src/cli.ts repair <operation> [options]
 
-For now, use legacy scripts directly:
-  npm run fix-corrupted-files
-  npm run fix-corrupted-videos
-  npm run transcode-gifs
-  npm run extract-videos-from-text
+Operations:
+  fix-corrupt         Rename HTML-as-media files to .txt (Images/Videos/Gifs)
+  recover-html        Extract and download video URLs from HTML Notes files
+
+Options:
+  --help, -h          Show this help
+
+Examples:
+  npx tsx src/cli.ts repair fix-corrupt
+  npx tsx src/cli.ts repair recover-html
 `;
 
 export function getHelpText(scope: HelpScope): string {

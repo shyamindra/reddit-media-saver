@@ -22,11 +22,17 @@ export interface SubredditTopCliOptions extends SubredditTopWorkflowOptions {
   batchPauseEvery: number;
 }
 
+export interface OrganizeCliOptions {
+  dryRun: boolean;
+}
+
+export type RepairOperation = 'fix-corrupt' | 'recover-html';
+
 export type CliCommand =
   | { type: 'help'; scope: HelpScope }
   | { type: 'download'; options: LinkBatchDownloadJobOptions }
   | { type: 'subreddit-top'; options: SubredditTopCliOptions }
   | { type: 'queue'; options: QueueCliOptions }
-  | { type: 'organize'; passthrough: string[] }
-  | { type: 'repair'; passthrough: string[] }
+  | { type: 'organize'; options: OrganizeCliOptions }
+  | { type: 'repair'; operation: RepairOperation }
   | { type: 'unknown'; message: string };

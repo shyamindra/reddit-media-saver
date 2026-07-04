@@ -148,6 +148,11 @@ npm run subreddit-top:test               # --limit 5 --scrape-only
 
 # Multi-subreddit queue (parallel waves + cooldown)
 npm run queue
+
+# Organize and repair downloaded files
+npm run organize
+npx tsx src/cli.ts repair fix-corrupt
+npx tsx src/cli.ts repair recover-html
 ```
 
 Legacy npm aliases (`download-firefox`, `download-subreddit-top`, `download-subreddit-queue`) still work and route to the same CLI subcommands.
@@ -180,6 +185,12 @@ The commands below are **deprecated** and kept only for one-off recovery. Prefer
 | `download-firefox` (alias) | `npm run download` or `npx tsx src/cli.ts download` |
 
 Legacy scripts under `src/scripts/` remain for one-off recovery but are no longer registered as npm scripts. Run directly with `npx tsx src/scripts/<name>.ts` if needed.
+
+| Deprecated npm script | Replacement |
+|---------------------|-------------|
+| `organize-downloads` | `npm run organize` or `npx tsx src/cli.ts organize` |
+| `fix-corrupted-files` | `npx tsx src/cli.ts repair fix-corrupt` |
+| `extract-videos-from-text` | `npx tsx src/cli.ts repair recover-html` |
 
 ## File Organization Commands
 
