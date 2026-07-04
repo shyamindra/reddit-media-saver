@@ -4,8 +4,8 @@ import { join } from 'path';
 import axios from 'axios';
 import { loadAppConfig } from '../config/appConfig';
 import type { DownloadItemResult, DownloadStrategy, LinkBatchItemType } from '../download/types';
-import { loadFirefoxCookieHeader } from '../utils/firefoxCookies';
-import { extractImageUrlsFromListingJson } from '../utils/redditGalleryImages';
+import { fetchPost } from '../services/redditFetchService';
+import { extractImageUrlsFromPostData } from '../utils/redditGalleryImages';
 import {
   countRedirectLoopHits,
   REDIRECT_LOOP_ABORT_THRESHOLD,
@@ -66,7 +66,6 @@ export function createYtdlpCookiesStrategy(
   const mediaDir = config.paths.output.media;
   const notesDir = config.paths.output.notes;
   const ytdlpBin = resolveYtdlpBinary();
-  let cookieHeader: string | undefined;
 
   for (const dir of [videoDir, mediaDir, notesDir, config.paths.failedRequestsDir]) {
     mkdirSync(dir, { recursive: true });
@@ -156,36 +155,19 @@ export function createYtdlpCookiesStrategy(
     return mediaDir;
   }
 
-  async function getCookieHeader(): Promise<string> {
-    if (!cookieHeader) {
-      cookieHeader = loadFirefoxCookieHeader(options.browser);
-    }
-    return cookieHeader;
-  }
-
   async function fetchGalleryImageUrls(postUrl: string): Promise<string[]> {
     try {
-      const normalized = postUrl.replace(/\/?$/, '');
-      const response = await axios.get(`${normalized}.json`, {
-        timeout: 30_000,
-        headers: {
-          Cookie: await getCookieHeader(),
-          'User-Agent': config.userAgent,
-          Accept: 'application/json',
-        },
-        validateStatus: (status) => status < 500,
+      const postData = await fetchPost(postUrl, {
+        useCookies: true,
+        browser: options.browser,
       });
 
-      if (response.status === 429) {
-        console.log('   ⚠️  JSON metadata rate limited (429)');
+      if (!postData) {
+        console.log('   ⚠️  Gallery JSON fallback: no post data (429 or HTTP error)');
         return [];
       }
 
-      if (response.status !== 200) {
-        return [];
-      }
-
-      return extractImageUrlsFromListingJson(response.data);
+      return extractImageUrlsFromPostData(postData);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'JSON fetch failed';
       console.log(`   ⚠️  Gallery JSON fallback failed: ${message}`);
