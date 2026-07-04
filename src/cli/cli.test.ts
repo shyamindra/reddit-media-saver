@@ -116,4 +116,47 @@ describe('executeCli', () => {
     expect(mockedRepair).toHaveBeenCalledTimes(1);
     expect(mockedRepair).toHaveBeenCalledWith({ operation: 'fix-corrupt' });
   });
+
+  it('parses repair transcode-gifs flags', () => {
+    const command = parseCli([
+      'repair',
+      'transcode-gifs',
+      '--dry-run',
+      '--delete-original',
+      '--source-dirs',
+      'Gifs,Media',
+    ]);
+    expect(command).toEqual({
+      type: 'repair',
+      operation: 'transcode-gifs',
+      transcodeOptions: {
+        dryRun: true,
+        deleteOriginal: true,
+        sourceDirs: ['Gifs', 'Media'],
+      },
+    });
+  });
+
+  it('routes repair transcode-gifs to executeRepairCommand', async () => {
+    mockedRepair.mockResolvedValueOnce({
+      operation: 'transcode-gifs',
+      summary: {
+        scanned: 0,
+        converted: 0,
+        skipped: 0,
+        failed: 0,
+        dryRun: 0,
+        results: [],
+      },
+    });
+
+    const command = parseCli(['repair', 'transcode-gifs', '--dry-run']);
+    await executeCli(command);
+
+    expect(mockedRepair).toHaveBeenCalledTimes(1);
+    expect(mockedRepair).toHaveBeenCalledWith({
+      operation: 'transcode-gifs',
+      transcodeOptions: { dryRun: true, deleteOriginal: false },
+    });
+  });
 });

@@ -6,6 +6,7 @@ import { extractVideoUrlsFromHtml, isHtmlContent } from './htmlContent';
 import { runFixCorrupt } from './fixCorrupt';
 import { runOrganize } from './organize';
 import { runRecoverHtml } from './recoverHtml';
+import { resolveTranscodeSourceDirs } from './transcodeGifs';
 
 describe('isHtmlContent', () => {
   it('detects HTML saved with an image extension', () => {
@@ -130,5 +131,30 @@ describe('runRecoverHtml', () => {
     expect(summary.downloaded).toBe(1);
     expect(downloaded).toContain('https://v.redd.it/recovertest');
     expect(existsSync(join(config.paths.output.videos, 'reddit_recovertest.mp4'))).toBe(true);
+  });
+});
+
+describe('resolveTranscodeSourceDirs', () => {
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    resetAppConfigForTests();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
+    resetAppConfigForTests();
+  });
+
+  it('derives scan folders from appConfig output paths', () => {
+    process.env.REDDIT_SAVER_DOWNLOADS_DIR = 'my-downloads';
+    const config = loadAppConfig();
+
+    expect(resolveTranscodeSourceDirs(config.paths.downloadsDir, config.paths.output)).toEqual([
+      'Gifs',
+      'Media',
+      'Videos',
+    ]);
   });
 });

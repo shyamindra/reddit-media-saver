@@ -2,7 +2,7 @@ import { join } from 'path';
 import { loadAppConfig } from '../config/appConfig';
 import type { LinkBatchDownloadJobOptions } from '../workflows/linkBatchDownloadJob';
 import { getHelpText } from './help';
-import type { CliCommand, OrganizeCliOptions, QueueCliOptions, RepairOperation, SubredditTopCliOptions } from './types';
+import type { CliCommand, OrganizeCliOptions, QueueCliOptions, RepairOperation, SubredditTopCliOptions, TranscodeGifsCliOptions } from './types';
 
 const DEFAULT_QUEUE_SUBREDDITS = [
   'softcorenights2',
@@ -248,10 +248,38 @@ function parseOrganizeArgs(args: string[]): OrganizeCliOptions {
   return { dryRun: args.includes('--dry-run') };
 }
 
-function parseRepairOperation(args: string[]): RepairOperation | null {
+function parseTranscodeGifsArgs(args: string[]): TranscodeGifsCliOptions {
+  const options: TranscodeGifsCliOptions = {
+    dryRun: false,
+    deleteOriginal: false,
+  };
+
+  for (let i = 0; i < args.length; i++) {
+    switch (args[i]) {
+      case '--dry-run':
+        options.dryRun = true;
+        break;
+      case '--delete-original':
+        options.deleteOriginal = true;
+        break;
+      case '--source-dirs':
+        options.sourceDirs = args[++i]?.split(',').map((entry) => entry.trim());
+        break;
+    }
+  }
+
+  return options;
+}
+
+function parseRepairOperation(
+  args: string[],
+): { operation: RepairOperation; transcodeOptions?: TranscodeGifsCliOptions } | null {
   const operation = args[0];
   if (operation === 'fix-corrupt' || operation === 'recover-html') {
-    return operation;
+    return { operation };
+  }
+  if (operation === 'transcode-gifs') {
+    return { operation, transcodeOptions: parseTranscodeGifsArgs(args.slice(1)) };
   }
   return null;
 }
@@ -296,14 +324,18 @@ export function parseCli(argv: string[]): CliCommand {
       if (wantsHelp(subArgs) || subArgs.length === 0) {
         return { type: 'help', scope: 'repair' };
       }
-      const operation = parseRepairOperation(subArgs);
-      if (!operation) {
+      const parsed = parseRepairOperation(subArgs);
+      if (!parsed) {
         return {
           type: 'unknown',
           message: `Unknown repair operation "${subArgs[0]}".\n\n${getHelpText('repair')}`,
         };
       }
-      return { type: 'repair', operation };
+      return {
+        type: 'repair',
+        operation: parsed.operation,
+        transcodeOptions: parsed.transcodeOptions,
+      };
     }
     default:
       return {

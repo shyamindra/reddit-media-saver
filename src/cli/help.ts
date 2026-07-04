@@ -107,6 +107,12 @@ Usage:
 Operations:
   fix-corrupt         Rename HTML-as-media files to .txt (Images/Videos/Gifs)
   recover-html        Extract and download video URLs from HTML Notes files
+  transcode-gifs      Convert local .gif / .gifv files to .mp4 in Videos/
+
+Options (transcode-gifs):
+  --dry-run           List targets without converting
+  --delete-original   Delete source files after successful conversion
+  --source-dirs       Comma-separated scan folders (default: Gifs,Media,Videos)
 
 Options:
   --help, -h          Show this help
@@ -114,6 +120,7 @@ Options:
 Examples:
   npx tsx src/cli.ts repair fix-corrupt
   npx tsx src/cli.ts repair recover-html
+  npx tsx src/cli.ts repair transcode-gifs --dry-run
 `;
 
 export function getHelpText(scope: HelpScope): string {

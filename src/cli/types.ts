@@ -26,7 +26,13 @@ export interface OrganizeCliOptions {
   dryRun: boolean;
 }
 
-export type RepairOperation = 'fix-corrupt' | 'recover-html';
+export type RepairOperation = 'fix-corrupt' | 'recover-html' | 'transcode-gifs';
+
+export interface TranscodeGifsCliOptions {
+  dryRun: boolean;
+  deleteOriginal: boolean;
+  sourceDirs?: string[];
+}
 
 export type CliCommand =
   | { type: 'help'; scope: HelpScope }
@@ -34,5 +40,5 @@ export type CliCommand =
   | { type: 'subreddit-top'; options: SubredditTopCliOptions }
   | { type: 'queue'; options: QueueCliOptions }
   | { type: 'organize'; options: OrganizeCliOptions }
-  | { type: 'repair'; operation: RepairOperation }
+  | { type: 'repair'; operation: RepairOperation; transcodeOptions?: TranscodeGifsCliOptions }
   | { type: 'unknown'; message: string };

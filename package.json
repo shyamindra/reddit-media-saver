@@ -51,7 +51,7 @@
     "download-subreddit-queue": "tsx src/cli.ts queue",
     "organize-downloads": "tsx src/scripts/organizeDownloads.ts",
     "organize-downloads-advanced": "tsx src/scripts/organizeDownloadsAdvanced.ts",
-    "transcode-gifs": "tsx src/scripts/transcodeGifs.ts",
+    "transcode-gifs": "tsx src/cli.ts repair transcode-gifs",
     "fix-corrupted-files": "tsx src/scripts/fixCorruptedFiles.ts"
   },
   "dependencies": {

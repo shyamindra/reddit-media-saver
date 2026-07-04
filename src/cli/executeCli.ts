@@ -3,6 +3,8 @@ import { runLinkBatchDownloadJob } from '../workflows/linkBatchDownloadJob';
 import { runSubredditQueue } from '../workflows/subredditQueueWorkflow';
 import { runSubredditTopWorkflow } from '../workflows/subredditTopWorkflow';
 import { chunk, waitForProcess } from '../utils/processUtils';
+import { FfmpegNotFoundError } from '../adapters/ffmpegAdapter';
+import type { TranscodeDirectoryResult } from '../services/mediaTranscodeService';
 import { executeRepairCommand, runOrganize } from '../repair/runRepair';
 import { getHelpText, printHelp } from './help';
 import type { CliCommand } from './types';
@@ -33,10 +35,32 @@ export async function executeCli(command: CliCommand): Promise<void> {
       return;
     }
     case 'repair': {
-      const result = await executeRepairCommand({ operation: command.operation });
-      console.log('\n📊 Repair Summary');
-      console.log(`   Operation: ${result.operation}`);
-      console.log(`   Result:    ${JSON.stringify(result.summary)}`);
+      try {
+        const result = await executeRepairCommand(
+          command.operation === 'transcode-gifs'
+            ? { operation: command.operation, transcodeOptions: command.transcodeOptions }
+            : { operation: command.operation },
+        );
+
+        if (command.operation === 'transcode-gifs') {
+          printTranscodeSummary(result.summary as TranscodeDirectoryResult);
+          if ((result.summary as TranscodeDirectoryResult).failed > 0) {
+            process.exitCode = 1;
+          }
+          return;
+        }
+
+        console.log('\n📊 Repair Summary');
+        console.log(`   Operation: ${result.operation}`);
+        console.log(`   Result:    ${JSON.stringify(result.summary)}`);
+      } catch (error) {
+        if (error instanceof FfmpegNotFoundError) {
+          console.error(`❌ ${error.message}`);
+          process.exitCode = 1;
+          return;
+        }
+        throw error;
+      }
       return;
     }
   }
@@ -84,3 +108,20 @@ async function executeQueue(options: import('./types').QueueCliOptions): Promise
 }
 
 export { getHelpText };
+
+function printTranscodeSummary(summary: TranscodeDirectoryResult): void {
+  for (const result of summary.results) {
+    const label =
+      result.status === 'failed'
+        ? `FAILED (${result.error})`
+        : result.status.toUpperCase();
+    console.log(`${label.padEnd(10)} ${result.inputPath} -> ${result.outputPath}`);
+  }
+
+  console.log('\n📊 Transcode Summary');
+  console.log(`   Scanned:   ${summary.scanned}`);
+  console.log(`   Converted: ${summary.converted}`);
+  console.log(`   Dry-run:   ${summary.dryRun}`);
+  console.log(`   Skipped:   ${summary.skipped}`);
+  console.log(`   Failed:    ${summary.failed}`);
+}
