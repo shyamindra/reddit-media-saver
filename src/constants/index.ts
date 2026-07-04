@@ -3,9 +3,9 @@ export const REDDIT_API_BASE = 'https://oauth.reddit.com';
 export const REDDIT_AUTH_URL = 'https://www.reddit.com/api/v1/authorize';
 export const REDDIT_TOKEN_URL = 'https://www.reddit.com/api/v1/access_token';
 
-// OAuth2 Configuration
+// OAuth2 Configuration — canonical values in appConfig; keep in sync with App.tsx
 export const REDDIT_CLIENT_ID = import.meta.env.VITE_REDDIT_CLIENT_ID || '';
-export const REDDIT_REDIRECT_URI = 'reddit-saver://auth';
+export const REDDIT_REDIRECT_URI = 'http://localhost:5173/auth/callback';
 export const REDDIT_SCOPE = 'history read';
 
 // App Constants

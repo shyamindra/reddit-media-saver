@@ -3,6 +3,7 @@ import './App.css';
 import { App as AppComponent } from './components/App';
 import { AuthCallback } from './components/AuthCallback';
 import type { AppConfig } from './types';
+import { loadAppConfig } from './config/appConfig';
 import { testEnvironmentVariables } from './utils/envTest';
 import { runDebugTest } from './utils/debugTest';
 import { runComprehensiveTest } from './utils/comprehensiveTest';
@@ -24,12 +25,13 @@ declare global {
 }
 
 // Default configuration
+const appConfig = loadAppConfig();
 const defaultConfig: AppConfig = {
   auth: {
     clientId: import.meta.env.VITE_REDDIT_CLIENT_ID || '',
     clientSecret: import.meta.env.VITE_REDDIT_CLIENT_SECRET || '',
-    redirectUri: 'http://localhost:5173/auth/callback',
-    scope: 'history read'
+    redirectUri: appConfig.auth.redirectUri,
+    scope: appConfig.auth.scope
   },
   storage: {
     basePath: './downloads',

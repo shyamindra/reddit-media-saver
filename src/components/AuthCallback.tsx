@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { authService } from '../services/authService';
 import type { AuthConfig } from '../types/reddit';
+import { loadAppConfig } from '../config/appConfig';
 
 export const AuthCallback: React.FC = () => {
   console.log('🎯 AuthCallback component rendered');
@@ -16,11 +17,12 @@ export const AuthCallback: React.FC = () => {
         console.log('🔍 Window name:', window.name);
         
         // Initialize auth service with the same config as main app
+        const appConfig = loadAppConfig();
         const authConfig: AuthConfig = {
           clientId: import.meta.env.VITE_REDDIT_CLIENT_ID || '',
           clientSecret: import.meta.env.VITE_REDDIT_CLIENT_SECRET || '',
-          redirectUri: 'http://localhost:5173/auth/callback',
-          scope: 'history read'
+          redirectUri: appConfig.auth.redirectUri,
+          scope: appConfig.auth.scope
         };
         
         console.log('🔧 Initializing auth service with config:', authConfig);

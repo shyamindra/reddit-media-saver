@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'fs';
 import { join } from 'path';
+import { loadAppConfig } from '../config/appConfig';
 
 export interface RedditUrlInfo {
   url: string;
@@ -36,8 +37,8 @@ export class FileInputService {
         const columns = trimmedLine.split(',').map(col => col.trim());
         if (columns.length >= 2) {
           const url = columns[1]; // Second column should be the URL
-          
-          if (url && url.length > 0) {
+
+          if (url && url.length > 0 && url !== 'permalink' && url.startsWith('http')) {
             urls.push(url);
           }
         }
@@ -53,7 +54,7 @@ export class FileInputService {
   /**
    * Find all CSV files in the input directory
    */
-  static findCsvFiles(inputDir: string = 'reddit-links'): string[] {
+  static findCsvFiles(inputDir: string = loadAppConfig().paths.redditLinksDir): string[] {
     try {
       const fullPath = join(process.cwd(), inputDir);
       const files = readdirSync(fullPath);
@@ -69,7 +70,7 @@ export class FileInputService {
   /**
    * Read Reddit URLs from all CSV files in the input directory
    */
-  static readAllRedditUrls(inputDir: string = 'reddit-links'): string[] {
+  static readAllRedditUrls(inputDir: string = loadAppConfig().paths.redditLinksDir): string[] {
     const csvFiles = FileInputService.findCsvFiles(inputDir);
     const allUrls: string[] = [];
 
@@ -107,6 +108,36 @@ export class FileInputService {
    */
   static validateRedditUrl(url: string): RedditUrlInfo {
     const trimmedUrl = url.trim();
+
+    // Check for explicit /comment/ID pattern
+    const commentMatch = trimmedUrl.match(FileInputService.REDDIT_URL_PATTERNS.comment);
+    if (commentMatch) {
+      return {
+        url: trimmedUrl,
+        type: 'comment',
+        subreddit: commentMatch[1],
+        postId: commentMatch[2],
+        commentId: commentMatch[4]
+      };
+    }
+
+    // Reddit shorthand comment URLs: /comments/POSTID/slug/COMMENTID/
+    const shorthandCommentMatch = trimmedUrl.match(
+      /^https?:\/\/(?:www\.)?reddit\.com\/r\/([^\/]+)\/comments\/([^\/]+)\/(.+)\/?$/
+    );
+    if (shorthandCommentMatch) {
+      const trailingSegments = shorthandCommentMatch[3].split('/').filter(Boolean);
+      if (trailingSegments.length >= 2) {
+        const commentId = trailingSegments[trailingSegments.length - 1];
+        return {
+          url: trimmedUrl,
+          type: 'comment',
+          subreddit: shorthandCommentMatch[1],
+          postId: shorthandCommentMatch[2],
+          commentId
+        };
+      }
+    }
     
     // Check for post pattern
     const postMatch = trimmedUrl.match(FileInputService.REDDIT_URL_PATTERNS.post);
@@ -116,18 +147,6 @@ export class FileInputService {
         type: 'post',
         subreddit: postMatch[1],
         postId: postMatch[2]
-      };
-    }
-
-    // Check for comment pattern
-    const commentMatch = trimmedUrl.match(FileInputService.REDDIT_URL_PATTERNS.comment);
-    if (commentMatch) {
-      return {
-        url: trimmedUrl,
-        type: 'comment',
-        subreddit: commentMatch[1],
-        postId: commentMatch[2],
-        commentId: commentMatch[4]
       };
     }
 
@@ -151,11 +170,13 @@ export class FileInputService {
   /**
    * Process all URLs from CSV files and return validated results
    */
-  static processRedditUrlsFromCsv(inputDir: string = 'reddit-links'): {
+  static processRedditUrlsFromCsv(inputDir: string = loadAppConfig().paths.redditLinksDir): {
     valid: RedditUrlInfo[];
     invalid: string[];
   } {
-    const urls = FileInputService.readAllRedditUrls(inputDir);
+    const urls = inputDir.toLowerCase().endsWith('.csv')
+      ? FileInputService.readRedditUrlsFromCsv(inputDir)
+      : FileInputService.readAllRedditUrls(inputDir);
     const valid: RedditUrlInfo[] = [];
     const invalid: string[] = [];
 

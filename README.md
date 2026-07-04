@@ -64,7 +64,7 @@ npm install
       - **Name**: "Reddit Media Saver"
       - **App type**: "web app"
       - **Description**: "Personal media saver"
-      - **Redirect URI**: `http://localhost:3000/auth/callback`
+      - **Redirect URI**: `http://localhost:5173/auth/callback`
    d. Copy the client ID (under the app name)
    e. Copy the client secret (click "secret")
 
@@ -744,7 +744,7 @@ After running the media extraction workflow, you'll have:
 - **Solution**:
   1. Go to [Reddit App Preferences](https://www.reddit.com/prefs/apps)
   2. Ensure app type is set to "web app"
-  3. Verify redirect URI is exactly: `http://localhost:3000/auth/callback`
+  3. Verify redirect URI is exactly: `http://localhost:5173/auth/callback`
   4. Check that client ID and secret are correct
 
 ##### Network/Port Issues
