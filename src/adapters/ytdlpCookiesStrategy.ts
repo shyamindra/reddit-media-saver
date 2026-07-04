@@ -7,14 +7,21 @@ import type { DownloadItemResult, DownloadStrategy, LinkBatchItemType } from '..
 import { resolveMediaFromPostUrl } from '../linkResolution/resolveFromPostUrl';
 import { resolvedDirectDownloads } from '../linkResolution/resolvePostMedia';
 import {
+  isRedgifsWatchUrl,
+  normalizeExternalMediaUrl,
+} from '../linkResolution/normalizeMediaUrl';
+import {
   countRedirectLoopHits,
   REDIRECT_LOOP_ABORT_THRESHOLD,
   resolveYtdlpBinary,
 } from '../utils/ytdlp';
 import {
-  isRedgifsWatchUrl,
-  normalizeExternalMediaUrl,
-} from '../linkResolution/normalizeMediaUrl';
+  classifyYtdlpOutput,
+  isDeadExternalHost,
+  isDirectRedditMediaUrl,
+  isRetryableFailure,
+  type YtdlpFailureKind,
+} from '../utils/ytdlpFailure';
 
 const MEDIA_HOSTS =
   /https?:\/\/(?:[a-z0-9-]+\.)?(?:redd\.it|redditmedia\.com|redgifs\.com|imgur\.com|gfycat\.com)\/[^\s"'<>]+/gi;
@@ -62,6 +69,17 @@ function titleFromUrl(url: string): string {
   return 'reddit_post';
 }
 
+export function stderrFallbackCandidates(
+  output: string,
+  failureKind: YtdlpFailureKind,
+): string[] {
+  const mediaUrls = extractMediaUrlsFromYtdlpOutput(output);
+  if (failureKind === 'redirect_loop') {
+    return mediaUrls.filter((candidate) => isDirectRedditMediaUrl(candidate));
+  }
+  return mediaUrls.filter((candidate) => !isDeadExternalHost(candidate));
+}
+
 export function createYtdlpCookiesStrategy(
   options: YtdlpCookiesStrategyOptions,
 ): DownloadStrategy {
@@ -78,18 +96,26 @@ export function createYtdlpCookiesStrategy(
   async function runYtdlp(
     args: string[],
     retriesOn429 = 3,
-  ): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
+  ): Promise<{
+    code: number;
+    stdout: string;
+    stderr: string;
+    timedOut?: boolean;
+    redirectLoop?: boolean;
+  }> {
     for (let attempt = 0; attempt <= retriesOn429; attempt++) {
       const result = await new Promise<{
         code: number;
         stdout: string;
         stderr: string;
         timedOut?: boolean;
+        redirectLoop?: boolean;
       }>((resolve, reject) => {
         const child = spawn(ytdlpBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
         let stdout = '';
         let stderr = '';
         let timedOut = false;
+        let redirectLoop = false;
         let redirectLoopCount = 0;
 
         const timeout = setTimeout(() => {
@@ -103,6 +129,7 @@ export function createYtdlpCookiesStrategy(
         const checkRedirectLoop = (text: string): void => {
           redirectLoopCount += countRedirectLoopHits(text);
           if (redirectLoopCount > REDIRECT_LOOP_ABORT_THRESHOLD) {
+            redirectLoop = true;
             timedOut = true;
             console.log(`\n   🔁 Redirect loop detected — killing yt-dlp and moving on.`);
             child.kill('SIGKILL');
@@ -129,7 +156,7 @@ export function createYtdlpCookiesStrategy(
         });
         child.on('close', (code) => {
           clearTimeout(timeout);
-          resolve({ code: code ?? 1, stdout, stderr, timedOut });
+          resolve({ code: code ?? 1, stdout, stderr, timedOut, redirectLoop });
         });
       });
 
@@ -165,7 +192,14 @@ export function createYtdlpCookiesStrategy(
   async function downloadExternalWithYtdlp(
     mediaUrl: string,
     title: string,
+    attemptedExternal: Set<string>,
   ): Promise<DownloadItemResult> {
+    const targetUrl = normalizeExternalMediaUrl(mediaUrl);
+    if (attemptedExternal.has(targetUrl) || isDeadExternalHost(targetUrl)) {
+      return { url: targetUrl, success: false, error: 'Skipped duplicate or dead external host' };
+    }
+    attemptedExternal.add(targetUrl);
+
     const outputTemplate = join(videoDir, `${title}.%(ext)s`);
     const args = [
       '--cookies-from-browser',
@@ -174,26 +208,31 @@ export function createYtdlpCookiesStrategy(
       outputTemplate,
       '--no-playlist',
       '--no-warnings',
+      '--retries',
+      '1',
       '--merge-output-format',
       'mp4',
-      mediaUrl,
+      targetUrl,
     ];
 
-    const { code, stdout, stderr } = await runYtdlp(args);
+    const { code, stdout, stderr, timedOut, redirectLoop } = await runYtdlp(args);
     const combined = `${stdout}\n${stderr}`;
+    const failureKind = classifyYtdlpOutput(combined, { timedOut, redirectLoop });
 
     if (code === 0) {
       const destination = combined.match(/Destination: (.+)/)?.[1];
       const merged = combined.match(/Merging formats into "(.+?)"/)?.[1];
-      return { url: mediaUrl, success: true, filePath: merged ?? destination };
+      return { url: targetUrl, success: true, filePath: merged ?? destination };
     }
 
-    return { url: mediaUrl, success: false, error: combined };
+    return { url: targetUrl, success: false, error: combined, failureKind };
   }
 
   async function downloadResolvedFromJson(
     postUrl: string,
     baseTitle: string,
+    attemptedExternal: Set<string>,
+    skipRedgifs: boolean,
   ): Promise<DownloadItemResult | null> {
     const resolved = resolvedDirectDownloads(
       await resolveMediaFromPostUrl(postUrl, { useCookies: true, browser: options.browser }),
@@ -208,11 +247,17 @@ export function createYtdlpCookiesStrategy(
       const targetUrl = normalizeExternalMediaUrl(media.url);
 
       if (isRedgifsWatchUrl(targetUrl)) {
-        const ytdlpResult = await downloadExternalWithYtdlp(targetUrl, title);
+        if (skipRedgifs) {
+          continue;
+        }
+        const ytdlpResult = await downloadExternalWithYtdlp(targetUrl, title, attemptedExternal);
         if (ytdlpResult.success && ytdlpResult.filePath) {
           savedPaths.push(ytdlpResult.filePath);
           console.log(`   ✅ Video fallback (redgifs): ${ytdlpResult.filePath}`);
           continue;
+        }
+        if (ytdlpResult.failureKind && !isRetryableFailure(ytdlpResult.failureKind)) {
+          skipRedgifs = true;
         }
         const message = ytdlpResult.error ?? 'Redgifs download failed';
         console.log(`   ⚠️  Redgifs download failed for ${targetUrl}: ${message.split('\n').pop()}`);
@@ -243,7 +288,7 @@ export function createYtdlpCookiesStrategy(
       '--no-playlist',
       '--no-warnings',
       '--retries',
-      '3',
+      '1',
       '--merge-output-format',
       'mp4',
       '--sleep-interval',
@@ -255,8 +300,9 @@ export function createYtdlpCookiesStrategy(
       url,
     ];
 
-    const { code, stdout, stderr } = await runYtdlp(args);
+    const { code, stdout, stderr, timedOut, redirectLoop } = await runYtdlp(args);
     const combined = `${stdout}\n${stderr}`;
+    const failureKind = classifyYtdlpOutput(combined, { timedOut, redirectLoop });
 
     if (code === 0) {
       const destination = combined.match(/Destination: (.+)/)?.[1];
@@ -264,7 +310,7 @@ export function createYtdlpCookiesStrategy(
       return { url, success: true, filePath: merged ?? destination };
     }
 
-    return { url, success: false, error: combined };
+    return { url, success: false, error: combined, failureKind };
   }
 
   async function downloadCommentText(url: string, title: string): Promise<DownloadItemResult> {
@@ -301,9 +347,11 @@ export function createYtdlpCookiesStrategy(
   async function downloadGalleryImages(
     postUrl: string,
     baseTitle: string,
+    attemptedExternal: Set<string>,
+    skipRedgifs: boolean,
   ): Promise<DownloadItemResult | null> {
     try {
-      return await downloadResolvedFromJson(postUrl, baseTitle);
+      return await downloadResolvedFromJson(postUrl, baseTitle, attemptedExternal, skipRedgifs);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'JSON fetch failed';
       console.log(`   ⚠️  Gallery JSON fallback failed: ${message}`);
@@ -311,9 +359,23 @@ export function createYtdlpCookiesStrategy(
     }
   }
 
+  function mergeFailureKind(
+    current: YtdlpFailureKind | undefined,
+    next: YtdlpFailureKind | undefined,
+  ): YtdlpFailureKind | undefined {
+    if (!next) return current;
+    if (!current) return next;
+    if (isRetryableFailure(current) || isRetryableFailure(next)) return 'rate_limit';
+    return current;
+  }
+
   return {
     async downloadUrl(url: string, type: LinkBatchItemType): Promise<DownloadItemResult> {
       const fallbackTitle = titleFromUrl(url);
+      const attemptedExternal = new Set<string>();
+      let skipRedgifs = false;
+      let failureKind: YtdlpFailureKind | undefined;
+
       console.log(`\n📥 ${type}: ${fallbackTitle}`);
       console.log(`   🔗 ${url}`);
 
@@ -323,16 +385,33 @@ export function createYtdlpCookiesStrategy(
         return ytdlpResult;
       }
 
-      const mediaUrls = extractMediaUrlsFromYtdlpOutput(ytdlpResult.error ?? '');
-      if (mediaUrls.length > 0) {
-        for (const mediaUrl of mediaUrls) {
+      failureKind = ytdlpResult.failureKind;
+      if (ytdlpResult.failureKind === 'redirect_loop') {
+        console.log('   ↪️  Redirect loop — skipping non-reddit stderr fallbacks, using JSON path');
+      }
+
+      const stderrCandidates = stderrFallbackCandidates(
+        ytdlpResult.error ?? '',
+        ytdlpResult.failureKind ?? 'unknown',
+      );
+
+      if (stderrCandidates.length > 0) {
+        for (const mediaUrl of stderrCandidates) {
           const targetUrl = normalizeExternalMediaUrl(mediaUrl);
           try {
             if (isRedgifsWatchUrl(targetUrl)) {
-              const result = await downloadExternalWithYtdlp(targetUrl, fallbackTitle);
+              const result = await downloadExternalWithYtdlp(
+                targetUrl,
+                fallbackTitle,
+                attemptedExternal,
+              );
               if (result.success && result.filePath) {
                 console.log(`   ✅ Video fallback (redgifs): ${result.filePath}`);
                 return { url, success: true, filePath: result.filePath };
+              }
+              failureKind = mergeFailureKind(failureKind, result.failureKind);
+              if (result.failureKind && !isRetryableFailure(result.failureKind)) {
+                skipRedgifs = true;
               }
               continue;
             }
@@ -347,7 +426,12 @@ export function createYtdlpCookiesStrategy(
         }
       }
 
-      const galleryResult = await downloadGalleryImages(url, fallbackTitle);
+      const galleryResult = await downloadGalleryImages(
+        url,
+        fallbackTitle,
+        attemptedExternal,
+        skipRedgifs,
+      );
       if (galleryResult) {
         return galleryResult;
       }
@@ -361,7 +445,12 @@ export function createYtdlpCookiesStrategy(
       }
 
       console.log(`   ❌ Failed`);
-      return { url, success: false, error: ytdlpResult.error ?? 'Download failed' };
+      return {
+        url,
+        success: false,
+        error: ytdlpResult.error ?? 'Download failed',
+        failureKind: failureKind ?? ytdlpResult.failureKind ?? 'unknown',
+      };
     },
   };
 }

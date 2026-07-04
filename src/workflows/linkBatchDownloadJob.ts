@@ -1,9 +1,10 @@
-import { appendFileSync, existsSync, writeFileSync } from 'fs';
 import { loadAppConfig } from '../config/appConfig';
+import { appendFailedDownload } from '../download/failureRegistry';
 import { executeLinkBatch } from '../download/executeLinkBatch';
 import type { LinkBatchItem } from '../download/types';
 import { FileInputService } from '../services/fileInputService';
 import { sleep } from '../utils/processUtils';
+import type { YtdlpFailureKind } from '../utils/ytdlpFailure';
 
 export interface LinkBatchDownloadJobOptions {
   inputDir: string;
@@ -27,16 +28,6 @@ function dedupeUrls<T extends { url: string }>(items: T[]): T[] {
     seen.add(item.url);
     return true;
   });
-}
-
-function appendFailedDownloads(filePath: string, urls: string[]): void {
-  if (urls.length === 0) return;
-  const payload = urls.join('\n') + '\n';
-  if (existsSync(filePath)) {
-    appendFileSync(filePath, payload, 'utf8');
-  } else {
-    writeFileSync(filePath, payload, 'utf8');
-  }
 }
 
 function toLinkBatch(
@@ -68,8 +59,9 @@ export async function runLinkBatchDownloadJob(options: LinkBatchDownloadJobOptio
 
   let totalSuccessful = 0;
   let totalFailed = 0;
+  let totalSkipped = 0;
   let totalProcessed = 0;
-  const allFailedUrls: string[] = [];
+  const allFailedDetails: Array<{ url: string; failureKind: YtdlpFailureKind }> = [];
 
   const runnerOptions = {
     browser: options.browser,
@@ -103,8 +95,9 @@ export async function runLinkBatchDownloadJob(options: LinkBatchDownloadJobOptio
 
     totalSuccessful += summary.successful;
     totalFailed += summary.failed;
+    totalSkipped += summary.skipped;
     totalProcessed += summary.total;
-    allFailedUrls.push(...summary.failedUrls);
+    allFailedDetails.push(...summary.failedDetails);
   }
 
   if (batchesToRun > 1) {
@@ -112,11 +105,16 @@ export async function runLinkBatchDownloadJob(options: LinkBatchDownloadJobOptio
     console.log(`   Total processed: ${totalProcessed}`);
     console.log(`   Successful: ${totalSuccessful}`);
     console.log(`   Failed:     ${totalFailed}`);
+    if (totalSkipped > 0) {
+      console.log(`   Skipped:    ${totalSkipped}`);
+    }
   }
 
-  if (allFailedUrls.length > 0) {
+  if (allFailedDetails.length > 0) {
     const failedFile = loadAppConfig().paths.failedDownloadsFile;
-    appendFailedDownloads(failedFile, allFailedUrls);
+    for (const entry of allFailedDetails) {
+      appendFailedDownload(failedFile, entry.url, entry.failureKind);
+    }
     console.log(`\n📝 Failed URLs appended to: ${failedFile}`);
   }
 

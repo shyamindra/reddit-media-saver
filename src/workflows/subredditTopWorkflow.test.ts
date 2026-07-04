@@ -70,6 +70,8 @@ describe('subredditTopWorkflow', () => {
       successful: 1,
       failed: 0,
       failedUrls: [],
+      failedDetails: [],
+      skipped: 0,
     });
 
     const result = await runSubredditTopWorkflow({

@@ -1,4 +1,4 @@
-import { extractMediaUrlsFromYtdlpOutput } from '../adapters/ytdlpCookiesStrategy';
+import { extractMediaUrlsFromYtdlpOutput, stderrFallbackCandidates } from '../adapters/ytdlpCookiesStrategy';
 
 describe('ytdlpCookiesStrategy helpers', () => {
   it('extracts redd.it and imgur URLs from yt-dlp stderr', () => {
@@ -16,5 +16,28 @@ describe('ytdlpCookiesStrategy helpers', () => {
 
   it('returns empty array when output has no media hosts', () => {
     expect(extractMediaUrlsFromYtdlpOutput('Following redirect to gallery')).toEqual([]);
+  });
+
+  it('stderr fallback on redirect loop keeps only direct redd.it URLs', () => {
+    const output = [
+      'https://i.redd.it/abc123.jpg',
+      'https://gfycat.com/dead-id',
+      'https://redgifs.com/watch/dead-id',
+    ].join('\n');
+
+    expect(stderrFallbackCandidates(output, 'redirect_loop')).toEqual([
+      'https://i.redd.it/abc123.jpg',
+    ]);
+  });
+
+  it('stderr fallback on other failures skips dead gfycat hosts', () => {
+    const output = [
+      'https://i.redd.it/abc123.jpg',
+      'https://gfycat.com/dead-id',
+    ].join('\n');
+
+    expect(stderrFallbackCandidates(output, 'gone')).toEqual([
+      'https://i.redd.it/abc123.jpg',
+    ]);
   });
 });

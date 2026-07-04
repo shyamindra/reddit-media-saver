@@ -5,11 +5,14 @@ export interface LinkBatchItem {
   type: LinkBatchItemType;
 }
 
+import type { YtdlpFailureKind } from '../utils/ytdlpFailure';
+
 export interface DownloadItemResult {
   url: string;
   success: boolean;
   filePath?: string;
   error?: string;
+  failureKind?: YtdlpFailureKind;
 }
 
 export interface DownloadRunnerOptions {
@@ -26,6 +29,8 @@ export interface BatchSummary {
   successful: number;
   failed: number;
   failedUrls: string[];
+  failedDetails: Array<{ url: string; failureKind: YtdlpFailureKind }>;
+  skipped: number;
 }
 
 export interface DownloadStrategy {

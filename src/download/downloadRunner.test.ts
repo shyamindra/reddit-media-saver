@@ -47,6 +47,8 @@ describe('downloadRunner', () => {
       successful: 2,
       failed: 1,
       failedUrls: ['https://reddit.com/b'],
+      failedDetails: [{ url: 'https://reddit.com/b', failureKind: 'unknown' }],
+      skipped: 0,
     });
   });
 
@@ -60,6 +62,25 @@ describe('downloadRunner', () => {
       successful: 0,
       failed: 0,
       failedUrls: [],
+      failedDetails: [],
+      skipped: 0,
     });
+  });
+
+  it('skips permanently failed URLs when provided', async () => {
+    const strategy = createMockStrategy({
+      'https://reddit.com/a': { success: true, filePath: 'downloads/Videos/a.mp4' },
+    });
+
+    const summary = await runBatch(
+      [{ url: 'https://reddit.com/dead', type: 'post' }, { url: 'https://reddit.com/a', type: 'post' }],
+      baseOptions,
+      strategy,
+      new Set(['https://reddit.com/dead']),
+    );
+
+    expect(summary.skipped).toBe(1);
+    expect(summary.successful).toBe(1);
+    expect(summary.failed).toBe(0);
   });
 });
