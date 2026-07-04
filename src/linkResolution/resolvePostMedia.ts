@@ -1,4 +1,5 @@
 import type { ResolvePostMediaContext, ResolvedMedia, ResolvedMediaType } from './types';
+import { normalizeExternalMediaUrl } from './normalizeMediaUrl';
 
 function decodeRedditUrl(url: string): string {
   return url.replace(/&amp;/g, '&');
@@ -51,7 +52,7 @@ function addCandidate(
   quality: string | undefined,
   context?: ResolvePostMediaContext,
 ): void {
-  const decoded = decodeRedditUrl(url);
+  const decoded = normalizeExternalMediaUrl(decodeRedditUrl(url));
   const resolvedType = mediaTypeForUrl(decoded) ?? mediaType;
   candidates.push(withContext({ url: decoded, mediaType: resolvedType, quality }, context));
 }
@@ -149,10 +150,11 @@ function extractPrimaryUrl(
   const primaryUrl = typeof postData.url === 'string' ? postData.url : '';
   if (!primaryUrl || primaryUrl.startsWith('https://www.reddit.com')) return [];
 
-  const mediaType = mediaTypeForUrl(primaryUrl);
+  const normalizedUrl = normalizeExternalMediaUrl(decodeRedditUrl(primaryUrl));
+  const mediaType = mediaTypeForUrl(normalizedUrl);
   if (!mediaType) return [];
 
-  return [withContext({ url: decodeRedditUrl(primaryUrl), mediaType, quality: 'primary' }, context)];
+  return [withContext({ url: normalizedUrl, mediaType, quality: 'primary' }, context)];
 }
 
 function extractEmbeddedUrls(

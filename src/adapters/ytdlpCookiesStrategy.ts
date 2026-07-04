@@ -11,6 +11,7 @@ import {
   REDIRECT_LOOP_ABORT_THRESHOLD,
   resolveYtdlpBinary,
 } from '../utils/ytdlp';
+import { normalizeExternalMediaUrl } from '../linkResolution/normalizeMediaUrl';
 
 const MEDIA_HOSTS =
   /https?:\/\/(?:[a-z0-9-]+\.)?(?:redd\.it|redditmedia\.com|redgifs\.com|imgur\.com|gfycat\.com)\/[^\s"'<>]+/gi;
@@ -280,7 +281,10 @@ export function createYtdlpCookiesStrategy(
       if (mediaUrls.length > 0) {
         for (const mediaUrl of mediaUrls) {
           try {
-            const filePath = await downloadDirectMedia(mediaUrl, fallbackTitle);
+            const filePath = await downloadDirectMedia(
+              normalizeExternalMediaUrl(mediaUrl),
+              fallbackTitle,
+            );
             console.log(`   ✅ Image fallback: ${filePath}`);
             return { url, success: true, filePath };
           } catch (error) {

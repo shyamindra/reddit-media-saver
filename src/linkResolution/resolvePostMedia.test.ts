@@ -74,6 +74,19 @@ describe('resolvePostMedia', () => {
     ]);
   });
 
+  it('rewrites gfycat primary URLs to redgifs watch pages', () => {
+    const resolved = resolvePostMedia({
+      url: 'https://gfycat.com/activepopulariggypops',
+    });
+
+    expect(resolved).toEqual([
+      expect.objectContaining({
+        url: 'https://www.redgifs.com/watch/activepopulariggypops',
+        mediaType: 'video',
+      }),
+    ]);
+  });
+
   it('deduplicates identical URLs', () => {
     const postData = {
       url: 'https://i.redd.it/same.jpg',
