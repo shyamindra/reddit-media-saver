@@ -129,6 +129,38 @@ The project uses a centralized configuration system for all extraction settings.
 - **Robust extraction**: Continues from where it left off if interrupted
 - **Automatic cleanup**: Removes temporary files after completion
 
+## Production Download Workflow (current)
+
+Use these commands for normal downloads. They run in-process via the download runner, Reddit fetch, and link resolution modules — no two-phase `extracted_files/` staging required.
+
+```bash
+# CSV link batch → yt-dlp + Firefox cookies (primary)
+npm run download-firefox
+npm run download-firefox:test          # --posts-only --limit 5
+
+# Subreddit top posts: scrape listing → download
+npm run download-subreddit-top
+npm run download-subreddit-top:test    # --limit 5 --scrape-only
+
+# Multi-subreddit queue (parallel waves + cooldown)
+npm run download-subreddit-queue
+```
+
+**Module pipeline:** Link intake (`fileInputService`) → Reddit fetch → link resolution (`ResolvedMedia[]`) → download runner (`ytdlp-cookies` primary, `axios-json` fallback adapter).
+
+## Deprecated: Legacy Extract / Dedupe Pipeline
+
+The commands below are **deprecated** and kept only for one-off recovery. Prefer the production workflow above.
+
+| Deprecated command | Replacement |
+|--------------------|-------------|
+| `extract-all-videos`, `deduplicate-urls`, `ytdlp-download` | `npm run download-firefox` |
+| `extract-media-urls`, `deduplicate-media-urls`, `download-media` | `npm run download-firefox` |
+| `extract-and-download-media` | `npm run download-firefox` |
+| `process-links` / `ContentDownloadService` | `npm run download-firefox` |
+
+Legacy scripts still read CSVs through **link intake** (`fileInputService`) but do not use the consolidated link resolution module. They will be removed when the unified CLI lands ([#14](https://github.com/shyamindra/reddit-media-saver/issues/14)).
+
 ## File Organization Commands
 
 The project includes several powerful scripts for organizing downloaded content, managing video files, and maintaining a clean file structure.
@@ -152,7 +184,9 @@ npm run organize-videos-custom
 - **`organize-downloads-advanced`**: Uses pattern matching to group related files
 - **`organize-videos-custom`**: Organizes videos by celebrity names and moves remaining files to "other" folder
 
-### URL Processing & Deduplication
+### URL Processing & Deduplication (deprecated)
+
+> **Deprecated** — use `npm run download-firefox` instead. See [Production Download Workflow](#production-download-workflow-current).
 
 ```bash
 # Deduplicate video URLs and select highest quality
@@ -171,7 +205,9 @@ npm run ytdlp-download -- --deduplicated
 - **`ytdlp-download`**: Downloads videos from the extracted URL list
 - **`ytdlp-download --deduplicated`**: Downloads with post titles as filenames
 
-### Media Processing (Images, GIFs, Text)
+### Media Processing (Images, GIFs, Text) (deprecated)
+
+> **Deprecated** — use `npm run download-firefox` instead.
 
 ```bash
 # Extract media URLs from CSV files (excluding videos)
@@ -194,7 +230,9 @@ npm run extract-and-download-media
 - **`download-media`**: Downloads media using post titles as filenames
 - **`extract-and-download-media`**: Combined extraction and download in one step
 
-### Reddit Links Processing
+### Reddit Links Processing (deprecated)
+
+> **Deprecated** — use `npm run download-firefox` instead.
 
 ```bash
 # Process all Reddit links

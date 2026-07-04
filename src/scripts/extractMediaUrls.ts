@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync, existsSync, readdirSync, appendFileSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, appendFileSync } from 'fs';
 import { join } from 'path';
 import axios from 'axios';
 import extractionConfig from '../config/extraction.config';
+import { FileInputService } from '../services/fileInputService';
 
 interface RedditPost {
   url: string;
@@ -62,77 +63,8 @@ class MediaUrlExtractor {
     });
   }
 
-  /**
-   * Read CSV files from reddit-links directory
-   */
   private readCsvFiles(): RedditPost[] {
-    const redditLinksDir = this.config.files.redditLinksDir;
-    const posts: RedditPost[] = [];
-
-    if (!existsSync(redditLinksDir)) {
-      console.log(`❌ Directory not found: ${redditLinksDir}`);
-      return posts;
-    }
-
-    const files = readdirSync(redditLinksDir).filter(file => file.endsWith('.csv'));
-    console.log(`📁 Found ${files.length} CSV files in ${redditLinksDir}/`);
-
-    for (const file of files) {
-      const filePath = join(redditLinksDir, file);
-      console.log(`📄 Processing: ${file}`);
-      
-      try {
-        const content = readFileSync(filePath, 'utf8');
-        const lines = content.split('\n').filter(line => line.trim());
-        
-        // Skip header if exists
-        const dataLines = lines[0].includes('id') || lines[0].includes('url') ? lines.slice(1) : lines;
-        
-        for (const line of dataLines) {
-          const columns = line.split(',');
-          if (columns.length >= 2) {
-            // Handle different CSV formats
-            let url: string;
-            let title: string;
-            let subreddit: string;
-            let author: string;
-
-            if (columns[0]?.includes('http')) {
-              // Format: url,title,subreddit,author
-              url = columns[0]?.trim();
-              title = columns[1]?.trim() || 'Unknown';
-              subreddit = columns[2]?.trim() || 'Unknown';
-              author = columns[3]?.trim() || 'Unknown';
-            } else {
-              // Format: id,permalink (extract info from permalink)
-              url = columns[1]?.trim();
-              const permalink = columns[1]?.trim();
-              
-              if (permalink) {
-                // Extract subreddit from permalink: /r/subreddit/comments/id/title/
-                const subredditMatch = permalink.match(/\/r\/([^\/]+)\/comments\//);
-                subreddit = subredditMatch ? subredditMatch[1] : 'Unknown';
-                
-                // Extract title from permalink
-                const titleMatch = permalink.match(/\/comments\/[^\/]+\/([^\/]+)/);
-                title = titleMatch ? titleMatch[1].replace(/_/g, ' ') : 'Unknown';
-                
-                author = 'Unknown'; // Not available in this format
-              } else {
-                continue;
-              }
-            }
-
-            if (url && title) {
-              posts.push({ url, title, subreddit, author });
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`❌ Error reading ${file}:`, error);
-      }
-    }
-
+    const posts = FileInputService.readRedditPostsFromCsv(this.config.files.redditLinksDir);
     console.log(`📊 Total posts found: ${posts.length}`);
     return posts;
   }

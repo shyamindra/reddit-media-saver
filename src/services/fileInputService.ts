@@ -10,6 +10,21 @@ export interface RedditUrlInfo {
   commentId?: string;
 }
 
+export interface RedditPostRow {
+  url: string;
+  title: string;
+  subreddit: string;
+  author: string;
+}
+
+function titleFromPostUrl(url: string): string {
+  const match = url.match(/\/comments\/[^/]+\/([^/?]+)/);
+  if (match?.[1] && match[1] !== 'comment') {
+    return match[1].replace(/_/g, ' ');
+  }
+  return 'Unknown';
+}
+
 export class FileInputService {
   private static readonly REDDIT_URL_PATTERNS = {
     post: /^https?:\/\/(?:www\.)?reddit\.com\/r\/([^\/]+)\/comments\/([^\/]+)(?:\/([^\/]+))?\/?$/,
@@ -165,6 +180,21 @@ export class FileInputService {
       url: trimmedUrl,
       type: 'invalid'
     };
+  }
+
+  /**
+   * Read post rows from CSV via link intake (replaces inline readCsvFiles in extract scripts).
+   */
+  static readRedditPostsFromCsv(inputDir: string = loadAppConfig().paths.redditLinksDir): RedditPostRow[] {
+    const { valid } = FileInputService.processRedditUrlsFromCsv(inputDir);
+    return valid
+      .filter((item) => item.type === 'post' || item.type === 'media')
+      .map((item) => ({
+        url: item.url,
+        title: titleFromPostUrl(item.url),
+        subreddit: item.subreddit ?? 'unknown',
+        author: 'Unknown',
+      }));
   }
 
   /**

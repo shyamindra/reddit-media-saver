@@ -1,11 +1,11 @@
 import { spawn } from 'child_process';
-import { createWriteStream, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import axios from 'axios';
 import { loadAppConfig } from '../config/appConfig';
+import { downloadDirectMediaUrl } from '../download/directMediaDownload';
 import type { DownloadItemResult, DownloadStrategy, LinkBatchItemType } from '../download/types';
-import { fetchPost } from '../services/redditFetchService';
-import { extractImageUrlsFromPostData } from '../utils/redditGalleryImages';
+import { resolveMediaFromPostUrl } from '../linkResolution/resolveFromPostUrl';
+import { resolvedDirectDownloads } from '../linkResolution/resolvePostMedia';
 import {
   countRedirectLoopHits,
   REDIRECT_LOOP_ABORT_THRESHOLD,
@@ -150,58 +150,40 @@ export function createYtdlpCookiesStrategy(
     return { code: 1, stdout: '', stderr: 'Rate limit retries exhausted' };
   }
 
-  function pickOutputDir(mediaUrl: string): string {
-    if (/\.gif$/i.test(mediaUrl)) return config.paths.output.gifs;
-    return mediaDir;
-  }
-
-  async function fetchGalleryImageUrls(postUrl: string): Promise<string[]> {
-    try {
-      const postData = await fetchPost(postUrl, {
-        useCookies: true,
-        browser: options.browser,
-      });
-
-      if (!postData) {
-        console.log('   ⚠️  Gallery JSON fallback: no post data (429 or HTTP error)');
-        return [];
-      }
-
-      return extractImageUrlsFromPostData(postData);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'JSON fetch failed';
-      console.log(`   ⚠️  Gallery JSON fallback failed: ${message}`);
-      return [];
-    }
-  }
-
   async function downloadDirectMedia(mediaUrl: string, title: string): Promise<string> {
-    const extMatch = mediaUrl.match(/\.([a-z0-9]{2,5})(?:\?|$)/i);
-    const ext = extMatch ? extMatch[1] : 'bin';
-    const outputDir = pickOutputDir(mediaUrl);
-    mkdirSync(outputDir, { recursive: true });
+    return downloadDirectMediaUrl(mediaUrl, title, {
+      media: mediaDir,
+      gifs: config.paths.output.gifs,
+      videos: videoDir,
+    });
+  }
 
-    const filePath = join(outputDir, `${title}.${ext}`);
-    if (existsSync(filePath)) {
-      return filePath;
+  async function downloadResolvedFromJson(
+    postUrl: string,
+    baseTitle: string,
+  ): Promise<DownloadItemResult | null> {
+    const resolved = resolvedDirectDownloads(
+      await resolveMediaFromPostUrl(postUrl, { useCookies: true, browser: options.browser }),
+    );
+    if (resolved.length === 0) return null;
+
+    const savedPaths: string[] = [];
+
+    for (let i = 0; i < resolved.length; i++) {
+      const media = resolved[i];
+      const title = imageTitle(media.title ?? baseTitle, i, resolved.length);
+      try {
+        const filePath = await downloadDirectMedia(media.url, title);
+        savedPaths.push(filePath);
+        console.log(`   ✅ Image fallback (json): ${filePath}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Direct download failed';
+        console.log(`   ⚠️  JSON resolved download failed for ${media.url}: ${message}`);
+      }
     }
 
-    const response = await axios.get(mediaUrl, {
-      responseType: 'stream',
-      timeout: 60_000,
-      headers: {
-        'User-Agent': config.userAgent,
-      },
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const writer = createWriteStream(filePath);
-      response.data.pipe(writer);
-      writer.on('finish', () => resolve());
-      writer.on('error', reject);
-    });
-
-    return filePath;
+    if (savedPaths.length === 0) return null;
+    return { url: postUrl, success: true, filePath: savedPaths[0] };
   }
 
   async function downloadWithYtdlp(url: string): Promise<DownloadItemResult> {
@@ -273,25 +255,13 @@ export function createYtdlpCookiesStrategy(
     postUrl: string,
     baseTitle: string,
   ): Promise<DownloadItemResult | null> {
-    const imageUrls = await fetchGalleryImageUrls(postUrl);
-    if (imageUrls.length === 0) return null;
-
-    const savedPaths: string[] = [];
-
-    for (let i = 0; i < imageUrls.length; i++) {
-      const title = imageTitle(baseTitle, i, imageUrls.length);
-      try {
-        const filePath = await downloadDirectMedia(imageUrls[i], title);
-        savedPaths.push(filePath);
-        console.log(`   ✅ Image fallback (json): ${filePath}`);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Direct download failed';
-        console.log(`   ⚠️  Gallery image download failed for ${imageUrls[i]}: ${message}`);
-      }
+    try {
+      return await downloadResolvedFromJson(postUrl, baseTitle);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'JSON fetch failed';
+      console.log(`   ⚠️  Gallery JSON fallback failed: ${message}`);
+      return null;
     }
-
-    if (savedPaths.length === 0) return null;
-    return { url: postUrl, success: true, filePath: savedPaths[0] };
   }
 
   return {

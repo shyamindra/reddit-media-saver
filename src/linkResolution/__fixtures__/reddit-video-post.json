@@ -1,0 +1,10 @@
+{
+  "is_video": true,
+  "media": {
+    "reddit_video": {
+      "fallback_url": "https://v.redd.it/clip/fallback.mp4",
+      "dash_url": "https://v.redd.it/clip/manifest.mpd",
+      "hls_url": "https://v.redd.it/clip/manifest.m3u8"
+    }
+  }
+}

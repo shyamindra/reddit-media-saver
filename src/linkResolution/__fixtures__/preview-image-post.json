@@ -1,0 +1,14 @@
+{
+  "url": "https://www.reddit.com/r/pics/",
+  "preview": {
+    "images": [
+      {
+        "source": { "url": "https://preview.redd.it/small.jpg?width=640" },
+        "resolutions": [
+          { "url": "https://preview.redd.it/medium.jpg?width=1080", "width": 1080 },
+          { "url": "https://preview.redd.it/large.jpg?width=1920", "width": 1920 }
+        ]
+      }
+    ]
+  }
+}

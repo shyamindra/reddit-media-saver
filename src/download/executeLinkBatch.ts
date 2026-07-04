@@ -1,3 +1,4 @@
+import { createAxiosJsonStrategy } from '../adapters/axiosJsonStrategy';
 import { createYtdlpCookiesStrategy } from '../adapters/ytdlpCookiesStrategy';
 import { runBatch } from '../download/downloadRunner';
 import type { BatchSummary, DownloadRunnerOptions, LinkBatchItem } from '../download/types';
@@ -37,3 +38,5 @@ export async function executeLinkBatch(
 
   return summary;
 }
+
+export { createAxiosJsonStrategy, createYtdlpCookiesStrategy };
