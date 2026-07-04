@@ -1,12 +1,11 @@
-import { spawn, spawnSync } from 'child_process';
-import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
-import axios from 'axios';
+import { appendFileSync, writeFileSync } from 'fs';
+import { existsSync } from 'fs';
+import { createYtdlpCookiesStrategy } from '../adapters/ytdlpCookiesStrategy';
 import { loadAppConfig } from '../config/appConfig';
+import { runBatch } from '../download/downloadRunner';
+import type { LinkBatchItem } from '../download/types';
 import { FileInputService } from '../services/fileInputService';
-import { loadFirefoxCookieHeader } from '../utils/firefoxCookies';
-import { extractImageUrlsFromListingJson } from '../utils/redditGalleryImages';
-import { countRedirectLoopHits, REDIRECT_LOOP_ABORT_THRESHOLD } from '../utils/ytdlp';
+import { getYtdlpVersion, resolveYtdlpBinary } from '../utils/ytdlp';
 
 interface CliOptions {
   inputDir: string;
@@ -23,413 +22,6 @@ interface CliOptions {
   postsOnly: boolean;
 }
 
-interface DownloadResult {
-  url: string;
-  success: boolean;
-  filePath?: string;
-  error?: string;
-}
-
-const MEDIA_HOSTS =
-  /https?:\/\/(?:[a-z0-9-]+\.)?(?:redd\.it|redditmedia\.com|redgifs\.com|imgur\.com|gfycat\.com)\/[^\s"'<>]+/gi;
-
-function resolveYtdlpBinary(): string {
-  const candidates = ['/opt/homebrew/bin/yt-dlp', '/usr/local/bin/yt-dlp', 'yt-dlp'];
-  for (const candidate of candidates) {
-    if (candidate.includes('/')) {
-      if (existsSync(candidate)) return candidate;
-      continue;
-    }
-    const found = spawnSync('which', [candidate], { encoding: 'utf8' });
-    if (found.status === 0 && found.stdout.trim()) {
-      return found.stdout.trim();
-    }
-  }
-  return 'yt-dlp';
-}
-
-function getYtdlpVersion(binary: string): string {
-  const result = spawnSync(binary, ['--version'], { encoding: 'utf8' });
-  return result.stdout.trim() || 'unknown';
-}
-
-class FirefoxBatchDownloader {
-  private config = loadAppConfig();
-  private videoDir = this.config.paths.output.videos;
-  private mediaDir = this.config.paths.output.media;
-  private notesDir = this.config.paths.output.notes;
-  private options: CliOptions;
-  private ytdlpBin: string;
-  private cookieHeader: string | undefined;
-
-  constructor(options: CliOptions) {
-    this.options = options;
-    this.ytdlpBin = resolveYtdlpBinary();
-    this.ensureDirectories();
-  }
-
-  private ensureDirectories(): void {
-    for (const dir of [this.videoDir, this.mediaDir, this.notesDir, this.config.paths.failedRequestsDir]) {
-      mkdirSync(dir, { recursive: true });
-    }
-  }
-
-  private sanitizeFilename(name: string): string {
-    return name
-      .replace(/[<>:"/\\|?*]/g, '_')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .substring(0, 180);
-  }
-
-  private async runYtdlp(args: string[], retriesOn429 = 3): Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }> {
-    for (let attempt = 0; attempt <= retriesOn429; attempt++) {
-      const result = await new Promise<{ code: number; stdout: string; stderr: string; timedOut?: boolean }>((resolve, reject) => {
-        const child = spawn(this.ytdlpBin, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '';
-        let stderr = '';
-        let timedOut = false;
-        let redirectLoopCount = 0;
-
-        // Hard cap on how long a single URL may run before we kill it.
-        const timeout = setTimeout(() => {
-          timedOut = true;
-          console.log(`\n   ⏱️  URL exceeded ${this.options.perUrlTimeoutMs / 1000}s — killing yt-dlp and moving on.`);
-          child.kill('SIGKILL');
-        }, this.options.perUrlTimeoutMs);
-
-        const checkRedirectLoop = (text: string): void => {
-          redirectLoopCount += countRedirectLoopHits(text);
-          if (redirectLoopCount > REDIRECT_LOOP_ABORT_THRESHOLD) {
-            timedOut = true;
-            console.log(`\n   🔁 Redirect loop detected — killing yt-dlp and moving on.`);
-            child.kill('SIGKILL');
-          }
-        };
-
-        child.stdout.on('data', (chunk) => {
-          const text = chunk.toString();
-          stdout += text;
-          process.stdout.write(text);
-          checkRedirectLoop(text);
-        });
-
-        child.stderr.on('data', (chunk) => {
-          const text = chunk.toString();
-          stderr += text;
-          process.stderr.write(text);
-          checkRedirectLoop(text);
-        });
-
-        child.on('error', (error) => {
-          clearTimeout(timeout);
-          reject(error);
-        });
-        child.on('close', (code) => {
-          clearTimeout(timeout);
-          resolve({ code: code ?? 1, stdout, stderr, timedOut });
-        });
-      });
-
-      if (result.timedOut) {
-        return result;
-      }
-
-      const combined = `${result.stdout}\n${result.stderr}`;
-      const is429 = combined.includes('429') || combined.includes('Too Many Requests');
-
-      if (result.code === 0 || !is429 || attempt === retriesOn429) {
-        return result;
-      }
-
-      const waitMs = [90_000, 180_000, 300_000][attempt] ?? 300_000;
-      console.log(`\n   ⏳ Rate limited (429). Waiting ${waitMs / 1000}s before retry ${attempt + 1}/${retriesOn429}...`);
-      await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
-
-    return { code: 1, stdout: '', stderr: 'Rate limit retries exhausted' };
-  }
-
-  private extractMediaUrls(output: string): string[] {
-    const found = new Set<string>();
-
-    const mediaRedirect = /reddit\.com\/media\?url=([^&\s"'<>]+)/gi;
-    let match: RegExpExecArray | null;
-    while ((match = mediaRedirect.exec(output)) !== null) {
-      try {
-        found.add(decodeURIComponent(match[1]));
-      } catch {
-        // ignore malformed URLs
-      }
-    }
-
-    const directMatches = output.match(MEDIA_HOSTS) ?? [];
-    for (const url of directMatches) {
-      found.add(url.replace(/[),.;]+$/, ''));
-    }
-
-    return [...found];
-  }
-
-  private titleFromUrl(url: string): string {
-    const match = url.match(/\/comments\/[^/]+\/([^/?]+)/);
-    if (match?.[1] && match[1] !== 'comment') {
-      return this.sanitizeFilename(match[1].replace(/_/g, ' '));
-    }
-    return 'reddit_post';
-  }
-
-  private pickOutputDir(mediaUrl: string): string {
-    if (/\.gif$/i.test(mediaUrl)) return this.config.paths.output.gifs;
-    return this.mediaDir;
-  }
-
-  private async getCookieHeader(): Promise<string> {
-    if (!this.cookieHeader) {
-      this.cookieHeader = loadFirefoxCookieHeader(this.options.browser);
-    }
-    return this.cookieHeader;
-  }
-
-  private postJsonUrl(postUrl: string): string {
-    const normalized = postUrl.replace(/\/?$/, '');
-    return `${normalized}.json`;
-  }
-
-  private async fetchGalleryImageUrls(postUrl: string): Promise<string[]> {
-    try {
-      const cookieHeader = await this.getCookieHeader();
-      const response = await axios.get(this.postJsonUrl(postUrl), {
-        timeout: 30_000,
-        headers: {
-          Cookie: cookieHeader,
-          'User-Agent': this.config.userAgent,
-          Accept: 'application/json',
-        },
-        validateStatus: (status) => status < 500,
-      });
-
-      if (response.status === 429) {
-        console.log('   ⚠️  JSON metadata rate limited (429)');
-        return [];
-      }
-
-      if (response.status !== 200) {
-        return [];
-      }
-
-      return extractImageUrlsFromListingJson(response.data);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'JSON fetch failed';
-      console.log(`   ⚠️  Gallery JSON fallback failed: ${message}`);
-      return [];
-    }
-  }
-
-  private imageTitle(baseTitle: string, index: number, total: number): string {
-    if (total <= 1) return baseTitle;
-    return `${baseTitle}_${index + 1}`;
-  }
-
-  private async downloadGalleryImages(
-    postUrl: string,
-    baseTitle: string,
-  ): Promise<DownloadResult | null> {
-    const imageUrls = await this.fetchGalleryImageUrls(postUrl);
-    if (imageUrls.length === 0) return null;
-
-    const savedPaths: string[] = [];
-
-    for (let i = 0; i < imageUrls.length; i++) {
-      const title = this.imageTitle(baseTitle, i, imageUrls.length);
-      try {
-        const filePath = await this.downloadDirectMedia(imageUrls[i], title);
-        savedPaths.push(filePath);
-        console.log(`   ✅ Image fallback (json): ${filePath}`);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Direct download failed';
-        console.log(`   ⚠️  Gallery image download failed for ${imageUrls[i]}: ${message}`);
-      }
-    }
-
-    if (savedPaths.length === 0) return null;
-    return { url: postUrl, success: true, filePath: savedPaths[0] };
-  }
-
-  private async downloadDirectMedia(mediaUrl: string, title: string): Promise<string> {
-    const extMatch = mediaUrl.match(/\.([a-z0-9]{2,5})(?:\?|$)/i);
-    const ext = extMatch ? extMatch[1] : 'bin';
-    const outputDir = this.pickOutputDir(mediaUrl);
-    mkdirSync(outputDir, { recursive: true });
-
-    const filePath = join(outputDir, `${title}.${ext}`);
-    if (existsSync(filePath)) {
-      return filePath;
-    }
-
-    const response = await axios.get(mediaUrl, {
-      responseType: 'stream',
-      timeout: 60000,
-      headers: {
-        'User-Agent': this.config.userAgent,
-      }
-    });
-
-    await new Promise<void>((resolve, reject) => {
-      const writer = createWriteStream(filePath);
-      response.data.pipe(writer);
-      writer.on('finish', () => resolve());
-      writer.on('error', reject);
-    });
-
-    return filePath;
-  }
-
-  private async downloadWithYtdlp(url: string): Promise<DownloadResult> {
-    const outputTemplate = join(this.videoDir, '%(title)s.%(ext)s');
-    const args = [
-      '--cookies-from-browser',
-      this.options.browser,
-      '-o',
-      outputTemplate,
-      '--no-playlist',
-      '--no-warnings',
-      '--retries',
-      '3',
-      '--merge-output-format',
-      'mp4',
-      '--sleep-interval',
-      '2',
-      '--max-sleep-interval',
-      '6',
-      '--download-archive',
-      this.options.archiveFile,
-      url
-    ];
-
-    const { code, stdout, stderr } = await this.runYtdlp(args);
-    const combined = `${stdout}\n${stderr}`;
-
-    if (code === 0) {
-      const destination = combined.match(/Destination: (.+)/)?.[1];
-      const merged = combined.match(/Merging formats into "(.+?)"/)?.[1];
-      return { url, success: true, filePath: merged ?? destination };
-    }
-
-    return { url, success: false, error: combined };
-  }
-
-  private async downloadCommentText(url: string, title: string): Promise<DownloadResult> {
-    try {
-      const { stdout, stderr, code } = await this.runYtdlp([
-        '--cookies-from-browser',
-        this.options.browser,
-        '--print',
-        'description',
-        '--no-download',
-        '--no-warnings',
-        url
-      ]);
-
-      const text = stdout.trim() || stderr.trim();
-      if (!text || code !== 0) {
-        return { url, success: false, error: 'Could not extract comment text' };
-      }
-
-      const filePath = join(this.notesDir, `${title}.txt`);
-      writeFileSync(filePath, `${url}\n\n${text}`, 'utf8');
-      return { url, success: true, filePath };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      return { url, success: false, error: message };
-    }
-  }
-
-  async downloadUrl(url: string, type: 'post' | 'comment' | 'media'): Promise<DownloadResult> {
-    const fallbackTitle = this.titleFromUrl(url);
-    console.log(`\n📥 ${type}: ${fallbackTitle}`);
-    console.log(`   🔗 ${url}`);
-
-    const ytdlpResult = await this.downloadWithYtdlp(url);
-    if (ytdlpResult.success) {
-      console.log(`   ✅ Saved: ${ytdlpResult.filePath}`);
-      return ytdlpResult;
-    }
-
-    const mediaUrls = this.extractMediaUrls(ytdlpResult.error ?? '');
-    if (mediaUrls.length > 0) {
-      for (const mediaUrl of mediaUrls) {
-        try {
-          const filePath = await this.downloadDirectMedia(mediaUrl, fallbackTitle);
-          console.log(`   ✅ Image fallback: ${filePath}`);
-          return { url, success: true, filePath };
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Direct download failed';
-          console.log(`   ⚠️  Direct download failed for ${mediaUrl}: ${message}`);
-        }
-      }
-    }
-
-    const galleryResult = await this.downloadGalleryImages(url, fallbackTitle);
-    if (galleryResult) {
-      return galleryResult;
-    }
-
-    if (type === 'comment') {
-      const commentResult = await this.downloadCommentText(url, fallbackTitle);
-      if (commentResult.success) {
-        console.log(`   ✅ Comment saved: ${commentResult.filePath}`);
-        return commentResult;
-      }
-    }
-
-    console.log(`   ❌ Failed`);
-    return { url, success: false, error: ytdlpResult.error ?? 'Download failed' };
-  }
-
-  async run(urls: { url: string; type: 'post' | 'comment' | 'media' }[]): Promise<{
-    total: number;
-    successful: number;
-    failed: number;
-    failedUrls: string[];
-  }> {
-    let successful = 0;
-    let failed = 0;
-    const failedUrls: string[] = [];
-
-    for (let i = 0; i < urls.length; i++) {
-      console.log(`\n[${i + 1}/${urls.length}]`);
-      const result = await this.downloadUrl(urls[i].url, urls[i].type);
-
-      if (result.success) {
-        successful++;
-      } else {
-        failed++;
-        failedUrls.push(urls[i].url);
-      }
-
-      if (i < urls.length - 1 && this.options.delayMs > 0) {
-        await new Promise((resolve) => setTimeout(resolve, this.options.delayMs));
-      }
-
-      const processed = i + 1;
-      if (
-        this.options.batchPauseEvery > 0 &&
-        this.options.batchPauseMs > 0 &&
-        processed < urls.length &&
-        processed % this.options.batchPauseEvery === 0
-      ) {
-        console.log(
-          `\n⏸️  Processed ${processed} URLs. Pausing ${this.options.batchPauseMs / 1000}s to avoid rate limits...\n`
-        );
-        await new Promise((resolve) => setTimeout(resolve, this.options.batchPauseMs));
-      }
-    }
-
-    return { total: urls.length, successful, failed, failedUrls };
-  }
-}
-
 function parseArgs(): CliOptions {
   const config = loadAppConfig();
   const args = process.argv.slice(2);
@@ -443,7 +35,7 @@ function parseArgs(): CliOptions {
     perUrlTimeoutMs: config.batch.perUrlTimeoutMs,
     browser: 'firefox',
     archiveFile: config.paths.downloadArchiveFile,
-    postsOnly: false
+    postsOnly: false,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -540,22 +132,54 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function appendFailedDownloads(filePath: string, urls: string[]): void {
+  if (urls.length === 0) return;
+  const payload = urls.join('\n') + '\n';
+  if (existsSync(filePath)) {
+    appendFileSync(filePath, payload, 'utf8');
+  } else {
+    writeFileSync(filePath, payload, 'utf8');
+  }
+}
+
+function toLinkBatch(
+  items: ReturnType<typeof FileInputService.processRedditUrlsFromCsv>['valid'],
+): LinkBatchItem[] {
+  return items.map((item) => ({ url: item.url, type: item.type }));
+}
+
 async function runSingleBatch(
   options: CliOptions,
-  urls: { url: string; type: 'post' | 'comment' | 'media' }[],
-  batchLabel: string
+  links: LinkBatchItem[],
+  batchLabel: string,
 ): Promise<{ total: number; successful: number; failed: number; failedUrls: string[] }> {
-  if (urls.length === 0) {
+  if (links.length === 0) {
     console.log('❌ No URLs to process.');
     return { total: 0, successful: 0, failed: 0, failedUrls: [] };
   }
 
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`📦 ${batchLabel}: ${urls.length} URLs`);
+  console.log(`📦 ${batchLabel}: ${links.length} URLs`);
   console.log(`${'='.repeat(60)}\n`);
 
-  const downloader = new FirefoxBatchDownloader(options);
-  const summary = await downloader.run(urls);
+  const strategy = createYtdlpCookiesStrategy({
+    browser: options.browser,
+    archiveFile: options.archiveFile,
+    perUrlTimeoutMs: options.perUrlTimeoutMs,
+  });
+
+  const summary = await runBatch(
+    links,
+    {
+      browser: options.browser,
+      archiveFile: options.archiveFile,
+      delayMs: options.delayMs,
+      batchPauseEvery: options.batchPauseEvery,
+      batchPauseMs: options.batchPauseMs,
+      perUrlTimeoutMs: options.perUrlTimeoutMs,
+    },
+    strategy,
+  );
 
   console.log('\n📊 Batch Summary');
   console.log(`   Total:      ${summary.total}`);
@@ -606,7 +230,8 @@ async function main(): Promise<void> {
     urls = urls.filter((u) => u.type === 'post' || u.type === 'media');
   }
 
-  const totalAvailable = urls.length;
+  const linkBatch = toLinkBatch(urls);
+  const totalAvailable = linkBatch.length;
   const batchSize = options.limit ?? 50;
   const startOffset = options.offset ?? 0;
   const batchesToRun = options.chainBatches;
@@ -625,16 +250,16 @@ async function main(): Promise<void> {
 
     if (batchIndex > 0) {
       console.log(
-        `\n🧊 Cooling down ${options.cooldownBetweenBatchesMs / 1000}s before next batch...\n`
+        `\n🧊 Cooling down ${options.cooldownBetweenBatchesMs / 1000}s before next batch...\n`,
       );
       await sleep(options.cooldownBetweenBatchesMs);
     }
 
-    const batchUrls = urls.slice(batchOffset, batchOffset + batchSize);
+    const batchLinks = linkBatch.slice(batchOffset, batchOffset + batchSize);
     const summary = await runSingleBatch(
       options,
-      batchUrls,
-      `Batch ${batchIndex + 1} (offset ${batchOffset}, ${batchUrls.length} URLs)`
+      batchLinks,
+      `Batch ${batchIndex + 1} (offset ${batchOffset}, ${batchLinks.length} URLs)`,
     );
 
     totalSuccessful += summary.successful;
@@ -652,15 +277,15 @@ async function main(): Promise<void> {
 
   if (allFailedUrls.length > 0) {
     const failedFile = loadAppConfig().paths.failedDownloadsFile;
-    writeFileSync(failedFile, allFailedUrls.join('\n'), 'utf8');
-    console.log(`\n📝 Failed URLs saved to: ${failedFile}`);
+    appendFailedDownloads(failedFile, allFailedUrls);
+    console.log(`\n📝 Failed URLs appended to: ${failedFile}`);
   }
 
   const nextOffset = startOffset + totalProcessed;
   if (nextOffset < totalAvailable) {
     const postsOnlyFlag = options.postsOnly ? ' --posts-only' : '';
     console.log(
-      `\n🔄 Next batch: npm run download-firefox --${postsOnlyFlag} --offset ${nextOffset} --limit ${batchSize}`
+      `\n🔄 Next batch: npm run download-firefox --${postsOnlyFlag} --offset ${nextOffset} --limit ${batchSize}`,
     );
     console.log(`   (${totalAvailable - nextOffset} URLs remaining of ${totalAvailable})`);
   }
@@ -673,4 +298,4 @@ main().catch((error) => {
   process.exit(1);
 });
 
-export { FirefoxBatchDownloader, main };
+export { main };

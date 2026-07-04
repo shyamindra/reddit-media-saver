@@ -23,3 +23,8 @@ export const REDIRECT_LOOP_ABORT_THRESHOLD = 8;
 export function countRedirectLoopHits(text: string): number {
   return (text.match(REDIRECT_LOOP_PATTERN) ?? []).length;
 }
+
+export function getYtdlpVersion(binary: string): string {
+  const result = spawnSync(binary, ['--version'], { encoding: 'utf8' });
+  return result.stdout.trim() || 'unknown';
+}
