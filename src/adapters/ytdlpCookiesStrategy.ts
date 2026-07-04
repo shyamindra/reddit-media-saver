@@ -11,7 +11,10 @@ import {
   REDIRECT_LOOP_ABORT_THRESHOLD,
   resolveYtdlpBinary,
 } from '../utils/ytdlp';
-import { normalizeExternalMediaUrl } from '../linkResolution/normalizeMediaUrl';
+import {
+  isRedgifsWatchUrl,
+  normalizeExternalMediaUrl,
+} from '../linkResolution/normalizeMediaUrl';
 
 const MEDIA_HOSTS =
   /https?:\/\/(?:[a-z0-9-]+\.)?(?:redd\.it|redditmedia\.com|redgifs\.com|imgur\.com|gfycat\.com)\/[^\s"'<>]+/gi;
@@ -159,6 +162,35 @@ export function createYtdlpCookiesStrategy(
     });
   }
 
+  async function downloadExternalWithYtdlp(
+    mediaUrl: string,
+    title: string,
+  ): Promise<DownloadItemResult> {
+    const outputTemplate = join(videoDir, `${title}.%(ext)s`);
+    const args = [
+      '--cookies-from-browser',
+      options.browser,
+      '-o',
+      outputTemplate,
+      '--no-playlist',
+      '--no-warnings',
+      '--merge-output-format',
+      'mp4',
+      mediaUrl,
+    ];
+
+    const { code, stdout, stderr } = await runYtdlp(args);
+    const combined = `${stdout}\n${stderr}`;
+
+    if (code === 0) {
+      const destination = combined.match(/Destination: (.+)/)?.[1];
+      const merged = combined.match(/Merging formats into "(.+?)"/)?.[1];
+      return { url: mediaUrl, success: true, filePath: merged ?? destination };
+    }
+
+    return { url: mediaUrl, success: false, error: combined };
+  }
+
   async function downloadResolvedFromJson(
     postUrl: string,
     baseTitle: string,
@@ -173,6 +205,20 @@ export function createYtdlpCookiesStrategy(
     for (let i = 0; i < resolved.length; i++) {
       const media = resolved[i];
       const title = imageTitle(media.title ?? baseTitle, i, resolved.length);
+      const targetUrl = normalizeExternalMediaUrl(media.url);
+
+      if (isRedgifsWatchUrl(targetUrl)) {
+        const ytdlpResult = await downloadExternalWithYtdlp(targetUrl, title);
+        if (ytdlpResult.success && ytdlpResult.filePath) {
+          savedPaths.push(ytdlpResult.filePath);
+          console.log(`   ✅ Video fallback (redgifs): ${ytdlpResult.filePath}`);
+          continue;
+        }
+        const message = ytdlpResult.error ?? 'Redgifs download failed';
+        console.log(`   ⚠️  Redgifs download failed for ${targetUrl}: ${message.split('\n').pop()}`);
+        continue;
+      }
+
       try {
         const filePath = await downloadDirectMedia(media.url, title);
         savedPaths.push(filePath);
@@ -280,16 +326,23 @@ export function createYtdlpCookiesStrategy(
       const mediaUrls = extractMediaUrlsFromYtdlpOutput(ytdlpResult.error ?? '');
       if (mediaUrls.length > 0) {
         for (const mediaUrl of mediaUrls) {
+          const targetUrl = normalizeExternalMediaUrl(mediaUrl);
           try {
-            const filePath = await downloadDirectMedia(
-              normalizeExternalMediaUrl(mediaUrl),
-              fallbackTitle,
-            );
+            if (isRedgifsWatchUrl(targetUrl)) {
+              const result = await downloadExternalWithYtdlp(targetUrl, fallbackTitle);
+              if (result.success && result.filePath) {
+                console.log(`   ✅ Video fallback (redgifs): ${result.filePath}`);
+                return { url, success: true, filePath: result.filePath };
+              }
+              continue;
+            }
+
+            const filePath = await downloadDirectMedia(targetUrl, fallbackTitle);
             console.log(`   ✅ Image fallback: ${filePath}`);
             return { url, success: true, filePath };
           } catch (error) {
             const message = error instanceof Error ? error.message : 'Direct download failed';
-            console.log(`   ⚠️  Direct download failed for ${mediaUrl}: ${message}`);
+            console.log(`   ⚠️  Direct download failed for ${targetUrl}: ${message}`);
           }
         }
       }
