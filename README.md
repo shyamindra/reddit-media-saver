@@ -131,22 +131,41 @@ The project uses a centralized configuration system for all extraction settings.
 
 ## Production Download Workflow (current)
 
-Use these commands for normal downloads. They run in-process via the download runner, Reddit fetch, and link resolution modules — no two-phase `extracted_files/` staging required.
+All production workflows run through the unified CLI (`src/cli.ts`). Subcommands call the download runner, Reddit fetch, and link resolution modules in-process — no two-phase `extracted_files/` staging required.
 
 ```bash
+# Unified CLI
+npx tsx src/cli.ts --help
+npx tsx src/cli.ts download --help
+
 # CSV link batch → yt-dlp + Firefox cookies (primary)
-npm run download-firefox
-npm run download-firefox:test          # --posts-only --limit 5
+npm run download
+npm run download:test                    # --posts-only --limit 5
 
 # Subreddit top posts: scrape listing → download
-npm run download-subreddit-top
-npm run download-subreddit-top:test    # --limit 5 --scrape-only
+npm run subreddit-top
+npm run subreddit-top:test               # --limit 5 --scrape-only
 
 # Multi-subreddit queue (parallel waves + cooldown)
-npm run download-subreddit-queue
+npm run queue
 ```
 
+Legacy npm aliases (`download-firefox`, `download-subreddit-top`, `download-subreddit-queue`) still work and route to the same CLI subcommands.
+
 **Module pipeline:** Link intake (`fileInputService`) → Reddit fetch → link resolution (`ResolvedMedia[]`) → download runner (`ytdlp-cookies` primary, `axios-json` fallback adapter).
+
+**Smoke test (no Reddit):**
+
+```bash
+npm test -- --testPathPatterns="cli|downloadRunner|subredditTopWorkflow|resolvePostMedia"
+```
+
+**Smoke test (needs Firefox closed, cool Reddit session):**
+
+```bash
+npm run download:test
+npm run subreddit-top:test
+```
 
 ## Deprecated: Legacy Extract / Dedupe Pipeline
 
@@ -154,12 +173,13 @@ The commands below are **deprecated** and kept only for one-off recovery. Prefer
 
 | Deprecated command | Replacement |
 |--------------------|-------------|
-| `extract-all-videos`, `deduplicate-urls`, `ytdlp-download` | `npm run download-firefox` |
-| `extract-media-urls`, `deduplicate-media-urls`, `download-media` | `npm run download-firefox` |
-| `extract-and-download-media` | `npm run download-firefox` |
-| `process-links` / `ContentDownloadService` | `npm run download-firefox` |
+| `extract-all-videos`, `deduplicate-urls`, `ytdlp-download` | `npm run download` |
+| `extract-media-urls`, `deduplicate-media-urls`, `download-media` | `npm run download` |
+| `extract-and-download-media` | `npm run download` |
+| `process-links` / `ContentDownloadService` | `npm run download` |
+| `download-firefox` (alias) | `npm run download` or `npx tsx src/cli.ts download` |
 
-Legacy scripts still read CSVs through **link intake** (`fileInputService`) but do not use the consolidated link resolution module. They will be removed when the unified CLI lands ([#14](https://github.com/shyamindra/reddit-media-saver/issues/14)).
+Legacy scripts under `src/scripts/` remain for one-off recovery but are no longer registered as npm scripts. Run directly with `npx tsx src/scripts/<name>.ts` if needed.
 
 ## File Organization Commands
 
@@ -186,7 +206,7 @@ npm run organize-videos-custom
 
 ### URL Processing & Deduplication (deprecated)
 
-> **Deprecated** — use `npm run download-firefox` instead. See [Production Download Workflow](#production-download-workflow-current).
+> **Deprecated** — use `npm run download` instead. See [Production Download Workflow](#production-download-workflow-current).
 
 ```bash
 # Deduplicate video URLs and select highest quality
@@ -207,7 +227,7 @@ npm run ytdlp-download -- --deduplicated
 
 ### Media Processing (Images, GIFs, Text) (deprecated)
 
-> **Deprecated** — use `npm run download-firefox` instead.
+> **Deprecated** — use `npm run download` instead.
 
 ```bash
 # Extract media URLs from CSV files (excluding videos)
@@ -232,7 +252,7 @@ npm run extract-and-download-media
 
 ### Reddit Links Processing (deprecated)
 
-> **Deprecated** — use `npm run download-firefox` instead.
+> **Deprecated** — use `npm run download` instead.
 
 ```bash
 # Process all Reddit links

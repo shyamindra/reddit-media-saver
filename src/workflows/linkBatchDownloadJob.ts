@@ -42,7 +42,9 @@ function appendFailedDownloads(filePath: string, urls: string[]): void {
 function toLinkBatch(
   items: ReturnType<typeof FileInputService.processRedditUrlsFromCsv>['valid'],
 ): LinkBatchItem[] {
-  return items.map((item) => ({ url: item.url, type: item.type }));
+  return items
+    .filter((item): item is typeof item & { type: LinkBatchItem['type'] } => item.type !== 'invalid')
+    .map((item) => ({ url: item.url, type: item.type }));
 }
 
 export async function runLinkBatchDownloadJob(options: LinkBatchDownloadJobOptions): Promise<void> {
@@ -122,7 +124,7 @@ export async function runLinkBatchDownloadJob(options: LinkBatchDownloadJobOptio
   if (nextOffset < totalAvailable) {
     const postsOnlyFlag = options.postsOnly ? ' --posts-only' : '';
     console.log(
-      `\n🔄 Next batch: npm run download-firefox --${postsOnlyFlag} --offset ${nextOffset} --limit ${batchSize}`,
+      `\n🔄 Next batch: npx tsx src/cli.ts download${postsOnlyFlag} --offset ${nextOffset} --limit ${batchSize}`,
     );
     console.log(`   (${totalAvailable - nextOffset} URLs remaining of ${totalAvailable})`);
   }
