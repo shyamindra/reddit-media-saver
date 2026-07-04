@@ -3,6 +3,12 @@ import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { loadAppConfig } from '../config/appConfig';
 import { downloadDirectMediaUrl } from '../download/directMediaDownload';
+import {
+  filterStderrFallbackCandidates,
+  isMotionMedia,
+  jsonFallbackSucceeded,
+  shouldSkipJsonFallbackItem,
+} from '../download/videoFallbackPolicy';
 import type { DownloadItemResult, DownloadStrategy, LinkBatchItemType } from '../download/types';
 import { resolveMediaFromPostUrl } from '../linkResolution/resolveFromPostUrl';
 import { resolvedDirectDownloads } from '../linkResolution/resolvePostMedia';
@@ -18,7 +24,6 @@ import {
 import {
   classifyYtdlpOutput,
   isDeadExternalHost,
-  isDirectRedditMediaUrl,
   isRetryableFailure,
   type YtdlpFailureKind,
 } from '../utils/ytdlpFailure';
@@ -73,11 +78,11 @@ export function stderrFallbackCandidates(
   output: string,
   failureKind: YtdlpFailureKind,
 ): string[] {
-  const mediaUrls = extractMediaUrlsFromYtdlpOutput(output);
-  if (failureKind === 'redirect_loop') {
-    return mediaUrls.filter((candidate) => isDirectRedditMediaUrl(candidate));
-  }
-  return mediaUrls.filter((candidate) => !isDeadExternalHost(candidate));
+  return filterStderrFallbackCandidates(
+    extractMediaUrlsFromYtdlpOutput(output),
+    failureKind,
+    normalizeExternalMediaUrl,
+  );
 }
 
 export function createYtdlpCookiesStrategy(
@@ -240,11 +245,19 @@ export function createYtdlpCookiesStrategy(
     if (resolved.length === 0) return null;
 
     const savedPaths: string[] = [];
+    let savedMotionCount = 0;
+    let savedImageCount = 0;
+    let motionTargetFailed = skipRedgifs;
 
     for (let i = 0; i < resolved.length; i++) {
       const media = resolved[i];
       const title = imageTitle(media.title ?? baseTitle, i, resolved.length);
       const targetUrl = normalizeExternalMediaUrl(media.url);
+
+      if (shouldSkipJsonFallbackItem(media, motionTargetFailed)) {
+        console.log(`   ⏭️  Skipping preview/dead fallback target: ${targetUrl}`);
+        continue;
+      }
 
       if (isRedgifsWatchUrl(targetUrl)) {
         if (skipRedgifs) {
@@ -253,9 +266,11 @@ export function createYtdlpCookiesStrategy(
         const ytdlpResult = await downloadExternalWithYtdlp(targetUrl, title, attemptedExternal);
         if (ytdlpResult.success && ytdlpResult.filePath) {
           savedPaths.push(ytdlpResult.filePath);
+          savedMotionCount++;
           console.log(`   ✅ Video fallback (redgifs): ${ytdlpResult.filePath}`);
           continue;
         }
+        motionTargetFailed = true;
         if (ytdlpResult.failureKind && !isRetryableFailure(ytdlpResult.failureKind)) {
           skipRedgifs = true;
         }
@@ -267,14 +282,29 @@ export function createYtdlpCookiesStrategy(
       try {
         const filePath = await downloadDirectMedia(media.url, title);
         savedPaths.push(filePath);
-        console.log(`   ✅ Image fallback (json): ${filePath}`);
+        if (isMotionMedia(media)) {
+          savedMotionCount++;
+          console.log(`   ✅ Motion fallback (json): ${filePath}`);
+        } else {
+          savedImageCount++;
+          console.log(`   ✅ Image fallback (json): ${filePath}`);
+        }
       } catch (error) {
+        if (isMotionMedia(media)) {
+          motionTargetFailed = true;
+        }
         const message = error instanceof Error ? error.message : 'Direct download failed';
         console.log(`   ⚠️  JSON resolved download failed for ${media.url}: ${message}`);
       }
     }
 
-    if (savedPaths.length === 0) return null;
+    if (!jsonFallbackSucceeded(resolved, savedMotionCount, savedImageCount)) {
+      if (resolved.some(isMotionMedia) && savedImageCount > 0 && savedMotionCount === 0) {
+        console.log('   ⚠️  Only preview images saved — video target failed, not counting as success');
+      }
+      return null;
+    }
+
     return { url: postUrl, success: true, filePath: savedPaths[0] };
   }
 
@@ -388,6 +418,13 @@ export function createYtdlpCookiesStrategy(
       failureKind = ytdlpResult.failureKind;
       if (ytdlpResult.failureKind === 'redirect_loop') {
         console.log('   ↪️  Redirect loop — skipping non-reddit stderr fallbacks, using JSON path');
+      }
+      if (ytdlpResult.failureKind === 'gone' || ytdlpResult.failureKind === 'dead_host') {
+        skipRedgifs = true;
+      }
+
+      for (const mediaUrl of extractMediaUrlsFromYtdlpOutput(ytdlpResult.error ?? '')) {
+        attemptedExternal.add(normalizeExternalMediaUrl(mediaUrl));
       }
 
       const stderrCandidates = stderrFallbackCandidates(

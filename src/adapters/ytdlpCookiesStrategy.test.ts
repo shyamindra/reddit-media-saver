@@ -30,14 +30,13 @@ describe('ytdlpCookiesStrategy helpers', () => {
     ]);
   });
 
-  it('stderr fallback on other failures skips dead gfycat hosts', () => {
+  it('stderr fallback on gone skips redgifs but keeps i.redd.it', () => {
     const output = [
-      'https://i.redd.it/abc123.jpg',
-      'https://gfycat.com/dead-id',
+      'ERROR: HTTP Error 410: Gone',
+      'https://i.redd.it/abc.gif',
+      'https://redgifs.com/watch/dead-id',
     ].join('\n');
 
-    expect(stderrFallbackCandidates(output, 'gone')).toEqual([
-      'https://i.redd.it/abc123.jpg',
-    ]);
+    expect(stderrFallbackCandidates(output, 'gone')).toEqual(['https://i.redd.it/abc.gif']);
   });
 });
