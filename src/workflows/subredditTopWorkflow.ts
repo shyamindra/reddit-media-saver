@@ -7,7 +7,7 @@ import {
   type SubredditSort,
   type SubredditTime,
 } from '../services/redditFetchService';
-import { cleanupCookieFile } from '../utils/firefoxCookies';
+import { cleanupBrowserSession } from '../services/browserSessionService';
 import { postsToLinkBatch, writeSubredditCsv, type SubredditPost } from './subredditCsv';
 
 export interface SubredditTopWorkflowOptions {
@@ -89,7 +89,7 @@ export async function runSubredditTopWorkflow(
   try {
     posts = await discoverPosts(options);
   } finally {
-    cleanupCookieFile();
+    cleanupBrowserSession();
   }
 
   if (posts.length === 0) {

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { loadAppConfig } from '../config/appConfig';
-import { loadFirefoxCookieHeader } from '../utils/firefoxCookies';
+import { loadRedditCookieHeader } from './browserSessionService';
 
 export type SubredditSort = 'top' | 'hot' | 'new' | 'rising';
 export type SubredditTime = 'hour' | 'day' | 'week' | 'month' | 'year' | 'all';
@@ -111,7 +111,7 @@ function buildHeaders(options: RedditFetchOptions = {}): Record<string, string> 
   };
 
   if (options.useCookies) {
-    headers.Cookie = loadFirefoxCookieHeader(options.browser ?? 'firefox');
+    headers.Cookie = loadRedditCookieHeader(options.browser ?? 'firefox');
   }
 
   return headers;
@@ -145,11 +145,10 @@ export async function fetchPost(
 export async function fetchListing(options: FetchListingOptions): Promise<ListingPost[]> {
   const { subreddit, sort, time = 'all', limit, browser = 'firefox', delayMs = 1500 } = options;
 
-  console.log('🍪 Exporting Firefox cookies for authenticated JSON access...');
-  const cookieHeader = loadFirefoxCookieHeader(browser);
+  console.log('🍪 Exporting browser cookies for authenticated JSON access...');
+  const headers = buildHeaders({ useCookies: true, browser });
   console.log('   ✅ Session cookies loaded\n');
 
-  const config = loadAppConfig();
   const collected = new Map<string, ListingPost>();
   let after: string | undefined;
   let page = 0;
@@ -160,11 +159,7 @@ export async function fetchListing(options: FetchListingOptions): Promise<Listin
     console.log(`📡 Fetching page ${page}: r/${subreddit}/${sort} (${collected.size}/${limit} collected)`);
 
     const response = await axios.get<RedditListingResponse>(endpoint, {
-      headers: {
-        'User-Agent': config.userAgent,
-        Cookie: cookieHeader,
-        Accept: 'application/json',
-      },
+      headers,
       timeout: 30_000,
       validateStatus: (status) => status < 500,
     });

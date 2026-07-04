@@ -1,12 +1,12 @@
 import { runSubredditTopWorkflow } from './subredditTopWorkflow';
 import { executeLinkBatch } from '../download/executeLinkBatch';
 import { fetchListing } from '../services/redditFetchService';
-import { cleanupCookieFile } from '../utils/firefoxCookies';
+import { cleanupBrowserSession } from '../services/browserSessionService';
 
 jest.mock('../download/executeLinkBatch');
 jest.mock('../services/redditFetchService');
-jest.mock('../utils/firefoxCookies', () => ({
-  cleanupCookieFile: jest.fn(),
+jest.mock('../services/browserSessionService', () => ({
+  cleanupBrowserSession: jest.fn(),
 }));
 
 const mockedExecuteLinkBatch = executeLinkBatch as jest.MockedFunction<typeof executeLinkBatch>;
@@ -51,7 +51,7 @@ describe('subredditTopWorkflow', () => {
     expect(result.posts).toHaveLength(1);
     expect(result.downloadSummary).toBeUndefined();
     expect(mockedExecuteLinkBatch).not.toHaveBeenCalled();
-    expect(cleanupCookieFile).toHaveBeenCalled();
+    expect(cleanupBrowserSession).toHaveBeenCalled();
   });
 
   it('downloads scraped posts in-process via executeLinkBatch', async () => {

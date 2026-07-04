@@ -4,8 +4,8 @@ import { fetchListing, fetchPost } from './redditFetchService';
 jest.mock('axios');
 const mockedAxios = axios as jest.Mocked<typeof axios>;
 
-jest.mock('../utils/firefoxCookies', () => ({
-  loadFirefoxCookieHeader: jest.fn(() => 'reddit_session=abc'),
+jest.mock('../services/browserSessionService', () => ({
+  loadRedditCookieHeader: jest.fn(() => 'reddit_session=abc'),
 }));
 
 const LISTING_PAGE_1 = {

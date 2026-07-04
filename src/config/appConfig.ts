@@ -5,6 +5,7 @@ export interface AppPaths {
   failedRequestsDir: string;
   downloadArchiveFile: string;
   failedDownloadsFile: string;
+  sessionCookieFile: string;
   output: {
     videos: string;
     media: string;
@@ -67,6 +68,7 @@ export function createAppConfig(): AppConfig {
       failedRequestsDir,
       downloadArchiveFile: `${extractedFilesDir}/downloaded-archive.txt`,
       failedDownloadsFile: `${failedRequestsDir}/failed-firefox-downloads.txt`,
+      sessionCookieFile: `${extractedFilesDir}/.reddit-session-cookies.txt`,
       output: buildOutputPaths(downloadsDir),
     },
     auth: {
