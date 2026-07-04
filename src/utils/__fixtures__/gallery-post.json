@@ -1,0 +1,31 @@
+[
+  {
+    "kind": "Listing",
+    "data": {
+      "children": [
+        {
+          "kind": "t3",
+          "data": {
+            "title": "Gallery test post",
+            "gallery_data": {
+              "items": [
+                { "media_id": "img-a" },
+                { "media_id": "img-b" }
+              ]
+            },
+            "media_metadata": {
+              "img-a": {
+                "e": "Image",
+                "s": { "u": "https://i.redd.it/abc123.jpg" }
+              },
+              "img-b": {
+                "e": "Image",
+                "s": { "u": "https://i.redd.it/def456.png" }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+]

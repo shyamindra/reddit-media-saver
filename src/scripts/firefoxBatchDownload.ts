@@ -4,6 +4,9 @@ import { join } from 'path';
 import axios from 'axios';
 import { loadAppConfig } from '../config/appConfig';
 import { FileInputService } from '../services/fileInputService';
+import { loadFirefoxCookieHeader } from '../utils/firefoxCookies';
+import { extractImageUrlsFromListingJson } from '../utils/redditGalleryImages';
+import { countRedirectLoopHits, REDIRECT_LOOP_ABORT_THRESHOLD } from '../utils/ytdlp';
 
 interface CliOptions {
   inputDir: string;
@@ -57,6 +60,7 @@ class FirefoxBatchDownloader {
   private notesDir = this.config.paths.output.notes;
   private options: CliOptions;
   private ytdlpBin: string;
+  private cookieHeader: string | undefined;
 
   constructor(options: CliOptions) {
     this.options = options;
@@ -95,9 +99,8 @@ class FirefoxBatchDownloader {
         }, this.options.perUrlTimeoutMs);
 
         const checkRedirectLoop = (text: string): void => {
-          const loopHits = (text.match(/Following redirect to|Downloading JSON metadata/g) ?? []).length;
-          redirectLoopCount += loopHits;
-          if (redirectLoopCount > 8) {
+          redirectLoopCount += countRedirectLoopHits(text);
+          if (redirectLoopCount > REDIRECT_LOOP_ABORT_THRESHOLD) {
             timedOut = true;
             console.log(`\n   🔁 Redirect loop detected — killing yt-dlp and moving on.`);
             child.kill('SIGKILL');
@@ -179,6 +182,78 @@ class FirefoxBatchDownloader {
   private pickOutputDir(mediaUrl: string): string {
     if (/\.gif$/i.test(mediaUrl)) return this.config.paths.output.gifs;
     return this.mediaDir;
+  }
+
+  private async getCookieHeader(): Promise<string> {
+    if (!this.cookieHeader) {
+      this.cookieHeader = loadFirefoxCookieHeader(this.options.browser);
+    }
+    return this.cookieHeader;
+  }
+
+  private postJsonUrl(postUrl: string): string {
+    const normalized = postUrl.replace(/\/?$/, '');
+    return `${normalized}.json`;
+  }
+
+  private async fetchGalleryImageUrls(postUrl: string): Promise<string[]> {
+    try {
+      const cookieHeader = await this.getCookieHeader();
+      const response = await axios.get(this.postJsonUrl(postUrl), {
+        timeout: 30_000,
+        headers: {
+          Cookie: cookieHeader,
+          'User-Agent': this.config.userAgent,
+          Accept: 'application/json',
+        },
+        validateStatus: (status) => status < 500,
+      });
+
+      if (response.status === 429) {
+        console.log('   ⚠️  JSON metadata rate limited (429)');
+        return [];
+      }
+
+      if (response.status !== 200) {
+        return [];
+      }
+
+      return extractImageUrlsFromListingJson(response.data);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'JSON fetch failed';
+      console.log(`   ⚠️  Gallery JSON fallback failed: ${message}`);
+      return [];
+    }
+  }
+
+  private imageTitle(baseTitle: string, index: number, total: number): string {
+    if (total <= 1) return baseTitle;
+    return `${baseTitle}_${index + 1}`;
+  }
+
+  private async downloadGalleryImages(
+    postUrl: string,
+    baseTitle: string,
+  ): Promise<DownloadResult | null> {
+    const imageUrls = await this.fetchGalleryImageUrls(postUrl);
+    if (imageUrls.length === 0) return null;
+
+    const savedPaths: string[] = [];
+
+    for (let i = 0; i < imageUrls.length; i++) {
+      const title = this.imageTitle(baseTitle, i, imageUrls.length);
+      try {
+        const filePath = await this.downloadDirectMedia(imageUrls[i], title);
+        savedPaths.push(filePath);
+        console.log(`   ✅ Image fallback (json): ${filePath}`);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Direct download failed';
+        console.log(`   ⚠️  Gallery image download failed for ${imageUrls[i]}: ${message}`);
+      }
+    }
+
+    if (savedPaths.length === 0) return null;
+    return { url: postUrl, success: true, filePath: savedPaths[0] };
   }
 
   private async downloadDirectMedia(mediaUrl: string, title: string): Promise<string> {
@@ -293,6 +368,11 @@ class FirefoxBatchDownloader {
           console.log(`   ⚠️  Direct download failed for ${mediaUrl}: ${message}`);
         }
       }
+    }
+
+    const galleryResult = await this.downloadGalleryImages(url, fallbackTitle);
+    if (galleryResult) {
+      return galleryResult;
     }
 
     if (type === 'comment') {
