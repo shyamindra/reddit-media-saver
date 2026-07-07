@@ -67,6 +67,28 @@ describe('downloadRunner', () => {
     });
   });
 
+  it('skips URLs from dead subreddits', async () => {
+    const strategy = createMockStrategy({
+      'https://reddit.com/a': { success: true, filePath: 'downloads/Videos/a.mp4' },
+    });
+
+    const summary = await runBatch(
+      [
+        {
+          url: 'https://www.reddit.com/r/HotWebScene/comments/abc123/title/',
+          type: 'post',
+        },
+        { url: 'https://reddit.com/a', type: 'post' },
+      ],
+      baseOptions,
+      strategy,
+    );
+
+    expect(summary.skipped).toBe(1);
+    expect(summary.successful).toBe(1);
+    expect(summary.failed).toBe(0);
+  });
+
   it('skips permanently failed URLs when provided', async () => {
     const strategy = createMockStrategy({
       'https://reddit.com/a': { success: true, filePath: 'downloads/Videos/a.mp4' },

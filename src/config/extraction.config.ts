@@ -71,7 +71,8 @@ export const extractionConfig: ExtractionConfig = {
     saveInterval: 10 // Save progress every 10 iterations
   },
   
-  userAgent: 'RedditSaverApp/1.0.0 (by /u/reddit_user)'
+  userAgent:
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 };
 
 export default extractionConfig; 

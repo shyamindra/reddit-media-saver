@@ -99,4 +99,51 @@ describe('resolvePostMedia', () => {
 
     expect(resolved).toHaveLength(1);
   });
+
+  it('decodes HTML entities in preview image URLs', () => {
+    const resolved = resolvePostMedia({
+      preview: {
+        images: [
+          {
+            source: {
+              url: 'https://preview.redd.it/img.jpg?width=1080&amp;format=pjpg&amp;auto=webp&amp;s=abc',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(resolved[0]?.url).toBe(
+      'https://preview.redd.it/img.jpg?width=1080&format=pjpg&auto=webp&s=abc',
+    );
+  });
+
+  it('resolves image and video items from gallery metadata', () => {
+    const resolved = resolvePostMedia({
+      gallery_data: {
+        items: [{ media_id: 'vid1' }, { media_id: 'img1' }],
+      },
+      media_metadata: {
+        vid1: {
+          e: 'RedditVideo',
+          s: { u: 'https://v.redd.it/clip.mp4' },
+        },
+        img1: {
+          e: 'Image',
+          s: { u: 'https://i.redd.it/photo.jpg' },
+        },
+      },
+    });
+
+    expect(resolved).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ url: 'https://v.redd.it/clip.mp4', mediaType: 'video' }),
+        expect.objectContaining({ url: 'https://i.redd.it/photo.jpg', mediaType: 'image' }),
+      ]),
+    );
+  });
+
+  it('returns empty array when post has no image media', () => {
+    expect(resolvePostMedia({ url: 'https://www.reddit.com/r/test/' })).toEqual([]);
+  });
 });

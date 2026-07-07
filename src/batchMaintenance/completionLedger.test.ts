@@ -1,11 +1,11 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'fs';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
-import { loadCompletedPostIds } from './compileRemainingShared';
+import { loadCompletedPostIds } from './completionLedger';
 
-describe('compileSavedRemaining', () => {
-  it('loadCompletedPostIds picks up saved-posts batch successes', () => {
-    const logDir = mkdtempSync(join(tmpdir(), 'compile-saved-'));
+describe('completionLedger', () => {
+  it('loadCompletedPostIds picks up saved-posts batch successes from download logs', () => {
+    const logDir = mkdtempSync(join(tmpdir(), 'completion-ledger-'));
     writeFileSync(
       join(logDir, 'saved-posts-batch-run.log'),
       [

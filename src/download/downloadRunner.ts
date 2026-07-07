@@ -5,6 +5,7 @@ import type {
   DownloadStrategy,
   LinkBatchItem,
 } from './types';
+import { shouldSkipDeadSubredditUrl } from '../utils/deadSubreddits';
 import type { YtdlpFailureKind } from '../utils/ytdlpFailure';
 
 function sleep(ms: number): Promise<void> {
@@ -30,6 +31,13 @@ export async function runBatch(
     if (skippedUrls.has(link.url)) {
       skipped++;
       console.log(`   ⏭️  Skipping permanently failed URL (non-retryable)`);
+      console.log(`   🔗 ${link.url}`);
+      continue;
+    }
+
+    if (shouldSkipDeadSubredditUrl(link.url)) {
+      skipped++;
+      console.log(`   ⏭️  Skipping dead subreddit URL`);
       console.log(`   🔗 ${link.url}`);
       continue;
     }

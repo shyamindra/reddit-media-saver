@@ -6,7 +6,7 @@ Terms used across architecture, PRDs, and issues.
 A collection of Reddit post or comment URLs, typically sourced from a CSV export (`reddit-links/`). The primary input to all download workflows.
 
 ## Link intake
-The module that reads, validates, and normalizes URLs from CSV files into a `Link batch`.
+The module that reads, validates, and normalizes URLs from CSV files into a `Link batch`. Implementation: `src/services/fileInputService.ts`; shared URL parsers live in `src/linkIntake/redditUrlParsers.ts` (also used by batch maintenance compile utilities).
 
 ## Link resolution
 The process of turning a Reddit URL into one or more concrete media download targets (direct image URL, video stream, gallery items). Includes deduplication and quality selection. Output type: `ResolvedMedia[]`.
@@ -49,3 +49,12 @@ Structured input to the text archive module: title, body, subreddit, author, tim
 
 ## Media transcode
 Post-download conversion of local GIF or GIFV files to MP4 via ffmpeg. Writes to the Videos folder in the output layout; optional deletion of originals after success.
+
+## Batch maintenance
+Operations for compiling remaining link batches, tracking download completion, and managing skip lists (e.g. dead subreddits). Exposed via CLI `batch` subcommands.
+
+## Completion ledger
+Adapter that records which post IDs have finished downloading. First adapter parses download run logs; the interface allows a future structured ledger without changing callers.
+
+## Dead subreddit registry
+File-backed list of subreddits to skip at compile time and download time. Replaces hardcoded in-source sets; refreshed via `batch analyze-dead` (planned).

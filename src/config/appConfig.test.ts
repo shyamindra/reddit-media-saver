@@ -27,6 +27,7 @@ describe('appConfig', () => {
     expect(config.paths.failedRequestsDir).toBe('extracted_files/failed_requests');
     expect(config.paths.downloadArchiveFile).toBe('extracted_files/downloaded-archive.txt');
     expect(config.paths.failedDownloadsFile).toBe('extracted_files/failed_requests/failed-firefox-downloads.txt');
+    expect(config.paths.deadSubredditsFile).toBe('extracted_files/dead-subreddits.json');
     expect(config.paths.sessionCookieFile).toBe('extracted_files/.reddit-session-cookies.txt');
   });
 

@@ -1,6 +1,11 @@
 import { readFileSync, readdirSync } from 'fs';
-import { join } from 'path';
+import { isAbsolute, join } from 'path';
 import { loadAppConfig } from '../config/appConfig';
+import { titleFromPostUrl } from '../linkIntake/redditUrlParsers';
+
+function resolvePath(filePath: string): string {
+  return isAbsolute(filePath) ? filePath : join(process.cwd(), filePath);
+}
 
 export interface RedditUrlInfo {
   url: string;
@@ -17,14 +22,6 @@ export interface RedditPostRow {
   author: string;
 }
 
-function titleFromPostUrl(url: string): string {
-  const match = url.match(/\/comments\/[^/]+\/([^/?]+)/);
-  if (match?.[1] && match[1] !== 'comment') {
-    return match[1].replace(/_/g, ' ');
-  }
-  return 'Unknown';
-}
-
 export class FileInputService {
   private static readonly REDDIT_URL_PATTERNS = {
     post: /^https?:\/\/(?:www\.)?reddit\.com\/r\/([^\/]+)\/comments\/([^\/]+)(?:\/([^\/]+))?\/?$/,
@@ -37,7 +34,7 @@ export class FileInputService {
    */
   static readRedditUrlsFromCsv(filePath: string): string[] {
     try {
-      const fullPath = join(process.cwd(), filePath);
+      const fullPath = resolvePath(filePath);
       const content = readFileSync(fullPath, 'utf-8');
       const lines = content.split('\n');
       const urls: string[] = [];
@@ -71,7 +68,7 @@ export class FileInputService {
    */
   static findCsvFiles(inputDir: string = loadAppConfig().paths.redditLinksDir): string[] {
     try {
-      const fullPath = join(process.cwd(), inputDir);
+      const fullPath = resolvePath(inputDir);
       const files = readdirSync(fullPath);
       return files
         .filter(file => file.toLowerCase().endsWith('.csv'))
@@ -106,7 +103,7 @@ export class FileInputService {
    */
   static readRedditUrls(filePath: string = 'reddit-links.txt'): string[] {
     try {
-      const fullPath = join(process.cwd(), filePath);
+      const fullPath = resolvePath(filePath);
       const content = readFileSync(fullPath, 'utf-8');
       return content
         .split('\n')
