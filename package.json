@@ -50,10 +50,12 @@
     "download-subreddit-top:test": "tsx src/cli.ts subreddit-top --limit 5 --scrape-only",
     "download-subreddit-queue": "tsx src/cli.ts queue",
     "organize-downloads": "tsx src/scripts/organizeDownloads.ts",
-    "organize-downloads-advanced": "tsx src/scripts/organizeDownloadsAdvanced.ts",
+    "organize-downloads-advanced": "tsx src/cli.ts repair organize-by-pattern",
+    "check-video-integrity": "tsx src/cli.ts repair integrity-scan",
     "transcode-gifs": "tsx src/cli.ts repair transcode-gifs",
-    "compile-saved-remaining": "tsx src/scripts/compileSavedRemaining.ts",
-    "compile-partial-remaining": "tsx src/scripts/compilePartialSubRemaining.ts",
+    "compile-saved-remaining": "tsx src/cli.ts batch compile-saved-remaining",
+    "compile-partial-remaining": "tsx src/cli.ts batch compile-partial-remaining",
+    "analyze-dead-subreddits": "tsx src/cli.ts batch analyze-dead",
     "fix-corrupted-files": "tsx src/scripts/fixCorruptedFiles.ts"
   },
   "dependencies": {

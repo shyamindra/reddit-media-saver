@@ -11,6 +11,7 @@ Subcommands:
   queue            Run multiple subreddit-top jobs in parallel waves
   organize         Group downloaded files by filename similarity
   repair           Fix corrupted media and recover videos from HTML notes
+  batch            Compile and analyze link batch CSVs
 
 Global:
   --help, -h       Show help for a subcommand
@@ -105,14 +106,19 @@ Usage:
   npx tsx src/cli.ts repair <operation> [options]
 
 Operations:
-  fix-corrupt         Rename HTML-as-media files to .txt (Images/Videos/Gifs)
-  recover-html        Extract and download video URLs from HTML Notes files
-  transcode-gifs      Convert local .gif / .gifv files to .mp4 in Videos/
+  fix-corrupt           Rename HTML-as-media files to .txt (Images/Videos/Gifs)
+  recover-html          Extract and download video URLs from HTML Notes files
+  transcode-gifs        Convert local .gif / .gifv files to .mp4 in Videos/
+  organize-by-pattern   Group files into subfolders by subreddit name patterns
+  integrity-scan        Scan Videos/*.mp4 for HTML/empty files and probe issues
 
 Options (transcode-gifs):
   --dry-run           List targets without converting
   --delete-original   Delete source files after successful conversion
   --source-dirs       Comma-separated scan folders (default: Gifs,Media,Videos)
+
+Options (organize-by-pattern):
+  --dry-run           Show grouping plan without moving files
 
 Options:
   --help, -h          Show this help
@@ -121,6 +127,29 @@ Examples:
   npx tsx src/cli.ts repair fix-corrupt
   npx tsx src/cli.ts repair recover-html
   npx tsx src/cli.ts repair transcode-gifs --dry-run
+  npx tsx src/cli.ts repair organize-by-pattern --dry-run
+  npx tsx src/cli.ts repair integrity-scan
+`;
+
+const BATCH_HELP = `batch — compile remaining link batches and analyze batch state
+
+Usage:
+  npx tsx src/cli.ts batch <operation> [options]
+
+Operations:
+  compile-saved-remaining     Build saved-posts/comments remaining CSVs from exports minus completed IDs
+  compile-partial-remaining   Build partial-remaining.csv from subreddit-scraped top lists
+  analyze-dead                Refresh dead-subreddits.json from download logs
+
+Options:
+  --dry-run           Preview counts without writing CSV files
+  --help, -h          Show this help
+
+Examples:
+  npx tsx src/cli.ts batch compile-saved-remaining
+  npx tsx src/cli.ts batch compile-saved-remaining --dry-run
+  npx tsx src/cli.ts batch compile-partial-remaining
+  npx tsx src/cli.ts batch analyze-dead --dry-run
 `;
 
 export function getHelpText(scope: HelpScope): string {
@@ -137,6 +166,8 @@ export function getHelpText(scope: HelpScope): string {
       return ORGANIZE_HELP;
     case 'repair':
       return REPAIR_HELP;
+    case 'batch':
+      return BATCH_HELP;
   }
 }
 

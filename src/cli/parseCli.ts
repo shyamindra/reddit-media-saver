@@ -2,7 +2,7 @@ import { join } from 'path';
 import { loadAppConfig } from '../config/appConfig';
 import type { LinkBatchDownloadJobOptions } from '../workflows/linkBatchDownloadJob';
 import { getHelpText } from './help';
-import type { CliCommand, OrganizeCliOptions, QueueCliOptions, RepairOperation, SubredditTopCliOptions, TranscodeGifsCliOptions } from './types';
+import type { CliCommand, OrganizeCliOptions, QueueCliOptions, RepairOperation, SubredditTopCliOptions, TranscodeGifsCliOptions, BatchCliOptions } from './types';
 
 const DEFAULT_QUEUE_SUBREDDITS = [
   'softcorenights2',
@@ -248,6 +248,10 @@ function parseOrganizeArgs(args: string[]): OrganizeCliOptions {
   return { dryRun: args.includes('--dry-run') };
 }
 
+function parseBatchArgs(args: string[]): BatchCliOptions {
+  return { dryRun: args.includes('--dry-run') };
+}
+
 function parseTranscodeGifsArgs(args: string[]): TranscodeGifsCliOptions {
   const options: TranscodeGifsCliOptions = {
     dryRun: false,
@@ -273,10 +277,13 @@ function parseTranscodeGifsArgs(args: string[]): TranscodeGifsCliOptions {
 
 function parseRepairOperation(
   args: string[],
-): { operation: RepairOperation; transcodeOptions?: TranscodeGifsCliOptions } | null {
+): { operation: RepairOperation; transcodeOptions?: TranscodeGifsCliOptions; dryRun?: boolean } | null {
   const operation = args[0];
-  if (operation === 'fix-corrupt' || operation === 'recover-html') {
+  if (operation === 'fix-corrupt' || operation === 'recover-html' || operation === 'integrity-scan') {
     return { operation };
+  }
+  if (operation === 'organize-by-pattern') {
+    return { operation, dryRun: args.includes('--dry-run') };
   }
   if (operation === 'transcode-gifs') {
     return { operation, transcodeOptions: parseTranscodeGifsArgs(args.slice(1)) };
@@ -306,6 +313,8 @@ export function parseCli(argv: string[]): CliCommand {
         return { type: 'help', scope: 'organize' };
       case 'repair':
         return { type: 'help', scope: 'repair' };
+      case 'batch':
+        return { type: 'help', scope: 'batch' };
       default:
         return { type: 'help', scope: 'root' };
     }
@@ -335,6 +344,38 @@ export function parseCli(argv: string[]): CliCommand {
         type: 'repair',
         operation: parsed.operation,
         transcodeOptions: parsed.transcodeOptions,
+        dryRun: parsed.dryRun,
+      };
+    }
+    case 'batch': {
+      if (wantsHelp(subArgs) || subArgs.length === 0) {
+        return { type: 'help', scope: 'batch' };
+      }
+      const operation = subArgs[0];
+      if (operation === 'compile-saved-remaining') {
+        return {
+          type: 'batch',
+          operation: 'compile-saved-remaining',
+          options: parseBatchArgs(subArgs.slice(1)),
+        };
+      }
+      if (operation === 'compile-partial-remaining') {
+        return {
+          type: 'batch',
+          operation: 'compile-partial-remaining',
+          options: parseBatchArgs(subArgs.slice(1)),
+        };
+      }
+      if (operation === 'analyze-dead') {
+        return {
+          type: 'batch',
+          operation: 'analyze-dead',
+          options: parseBatchArgs(subArgs.slice(1)),
+        };
+      }
+      return {
+        type: 'unknown',
+        message: `Unknown batch operation "${operation}".\n\n${getHelpText('batch')}`,
       };
     }
     default:

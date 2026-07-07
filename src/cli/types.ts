@@ -1,7 +1,16 @@
 import type { LinkBatchDownloadJobOptions } from '../workflows/linkBatchDownloadJob';
 import type { SubredditTopWorkflowOptions } from '../workflows/subredditTopWorkflow';
 
-export type HelpScope = 'root' | 'download' | 'subreddit-top' | 'queue' | 'organize' | 'repair';
+export type HelpScope = 'root' | 'download' | 'subreddit-top' | 'queue' | 'organize' | 'repair' | 'batch';
+
+export type BatchOperation =
+  | 'compile-saved-remaining'
+  | 'compile-partial-remaining'
+  | 'analyze-dead';
+
+export interface BatchCliOptions {
+  dryRun: boolean;
+}
 
 export interface QueueCliOptions {
   subreddits: string[];
@@ -26,7 +35,12 @@ export interface OrganizeCliOptions {
   dryRun: boolean;
 }
 
-export type RepairOperation = 'fix-corrupt' | 'recover-html' | 'transcode-gifs';
+export type RepairOperation =
+  | 'fix-corrupt'
+  | 'recover-html'
+  | 'transcode-gifs'
+  | 'organize-by-pattern'
+  | 'integrity-scan';
 
 export interface TranscodeGifsCliOptions {
   dryRun: boolean;
@@ -40,5 +54,6 @@ export type CliCommand =
   | { type: 'subreddit-top'; options: SubredditTopCliOptions }
   | { type: 'queue'; options: QueueCliOptions }
   | { type: 'organize'; options: OrganizeCliOptions }
-  | { type: 'repair'; operation: RepairOperation; transcodeOptions?: TranscodeGifsCliOptions }
+  | { type: 'repair'; operation: RepairOperation; transcodeOptions?: TranscodeGifsCliOptions; dryRun?: boolean }
+  | { type: 'batch'; operation: BatchOperation; options: BatchCliOptions }
   | { type: 'unknown'; message: string };

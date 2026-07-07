@@ -6,10 +6,16 @@ import { runSubredditQueue } from '../workflows/subredditQueueWorkflow';
 
 import { runOrganize } from '../repair/runRepair';
 import { executeRepairCommand } from '../repair/runRepair';
+import { compileSavedRemaining } from '../batchMaintenance/compileSavedRemaining';
+import { compilePartialRemaining } from '../batchMaintenance/compilePartialRemaining';
+import { updateDeadSubredditRegistry } from '../batchMaintenance/deadSubredditRegistry';
 
 jest.mock('../workflows/linkBatchDownloadJob');
 jest.mock('../workflows/subredditTopWorkflow');
 jest.mock('../workflows/subredditQueueWorkflow');
+jest.mock('../batchMaintenance/compileSavedRemaining');
+jest.mock('../batchMaintenance/compilePartialRemaining');
+jest.mock('../batchMaintenance/deadSubredditRegistry');
 jest.mock('../repair/runRepair', () => ({
   runOrganize: jest.fn(() => ({ totalFiles: 0, organizedFiles: 0, groupsCreated: 0 })),
   executeRepairCommand: jest.fn(async () => ({
@@ -30,6 +36,15 @@ const mockedSubredditTop = runSubredditTopWorkflow as jest.MockedFunction<
   typeof runSubredditTopWorkflow
 >;
 const mockedQueue = runSubredditQueue as jest.MockedFunction<typeof runSubredditQueue>;
+const mockedCompileSavedRemaining = compileSavedRemaining as jest.MockedFunction<
+  typeof compileSavedRemaining
+>;
+const mockedCompilePartialRemaining = compilePartialRemaining as jest.MockedFunction<
+  typeof compilePartialRemaining
+>;
+const mockedUpdateDeadSubredditRegistry = updateDeadSubredditRegistry as jest.MockedFunction<
+  typeof updateDeadSubredditRegistry
+>;
 
 describe('parseCli', () => {
   it('returns root help when no subcommand is given', () => {
@@ -56,6 +71,33 @@ describe('parseCli', () => {
     expect(command.options.inputDir).toBe('reddit-links/batch.csv');
     expect(command.options.limit).toBe(10);
     expect(command.options.postsOnly).toBe(true);
+  });
+
+  it('parses batch compile-saved-remaining with dry-run', () => {
+    const command = parseCli(['batch', 'compile-saved-remaining', '--dry-run']);
+    expect(command).toEqual({
+      type: 'batch',
+      operation: 'compile-saved-remaining',
+      options: { dryRun: true },
+    });
+  });
+
+  it('parses batch compile-partial-remaining', () => {
+    const command = parseCli(['batch', 'compile-partial-remaining', '--dry-run']);
+    expect(command).toEqual({
+      type: 'batch',
+      operation: 'compile-partial-remaining',
+      options: { dryRun: true },
+    });
+  });
+
+  it('parses batch analyze-dead with dry-run', () => {
+    const command = parseCli(['batch', 'analyze-dead', '--dry-run']);
+    expect(command).toEqual({
+      type: 'batch',
+      operation: 'analyze-dead',
+      options: { dryRun: true },
+    });
   });
 });
 
@@ -117,6 +159,26 @@ describe('executeCli', () => {
     expect(mockedRepair).toHaveBeenCalledWith({ operation: 'fix-corrupt' });
   });
 
+  it('parses repair organize-by-pattern dry-run', () => {
+    expect(parseCli(['repair', 'organize-by-pattern', '--dry-run'])).toEqual({
+      type: 'repair',
+      operation: 'organize-by-pattern',
+      dryRun: true,
+    });
+  });
+
+  it('routes repair integrity-scan to executeRepairCommand', async () => {
+    mockedRepair.mockResolvedValueOnce({
+      operation: 'integrity-scan',
+      summary: { scanned: 0, issues: [] },
+    });
+
+    const command = parseCli(['repair', 'integrity-scan']);
+    await executeCli(command);
+
+    expect(mockedRepair).toHaveBeenCalledWith({ operation: 'integrity-scan' });
+  });
+
   it('parses repair transcode-gifs flags', () => {
     const command = parseCli([
       'repair',
@@ -158,5 +220,85 @@ describe('executeCli', () => {
       operation: 'transcode-gifs',
       transcodeOptions: { dryRun: true, deleteOriginal: false },
     });
+  });
+
+  it('routes batch compile-saved-remaining to compileSavedRemaining', async () => {
+    mockedCompileSavedRemaining.mockReturnValueOnce({
+      posts: {
+        total: 10,
+        remaining: 3,
+        excludedFailed: 1,
+        excludedDeadSub: 2,
+        rows: [],
+      },
+      comments: {
+        total: 5,
+        remaining: 1,
+        excludedFailed: 0,
+        excludedDeadSub: 0,
+        rows: [],
+      },
+      postsOutput: 'reddit-links/saved-posts-remaining.csv',
+      commentsOutput: 'reddit-links/saved-comments-remaining.csv',
+      dryRun: false,
+    });
+
+    const command = parseCli(['batch', 'compile-saved-remaining']);
+    await executeCli(command);
+
+    expect(mockedCompileSavedRemaining).toHaveBeenCalledTimes(1);
+    expect(mockedCompileSavedRemaining).toHaveBeenCalledWith(
+      expect.objectContaining({
+        linksDir: 'reddit-links',
+        dryRun: false,
+      }),
+    );
+  });
+
+  it('routes batch compile-partial-remaining to compilePartialRemaining', async () => {
+    mockedCompilePartialRemaining.mockReturnValueOnce({
+      total: 40,
+      remaining: 12,
+      rows: [],
+      bySubreddit: {
+        KoreanActressFAP: { scraped: 10, remaining: 3 },
+        WatchItForThePlot: { scraped: 30, remaining: 9 },
+      },
+      outputPath: 'reddit-links/subreddit-scraped/partial-remaining.csv',
+      dryRun: false,
+    });
+
+    const command = parseCli(['batch', 'compile-partial-remaining']);
+    await executeCli(command);
+
+    expect(mockedCompilePartialRemaining).toHaveBeenCalledTimes(1);
+    expect(mockedCompilePartialRemaining).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scrapedDir: 'reddit-links/subreddit-scraped',
+        dryRun: false,
+      }),
+    );
+  });
+
+  it('routes batch analyze-dead to updateDeadSubredditRegistry', async () => {
+    mockedUpdateDeadSubredditRegistry.mockReturnValueOnce({
+      dryRun: true,
+      candidates: ['deadsub'],
+      added: ['deadsub'],
+      total: 64,
+      registryPath: 'extracted_files/dead-subreddits.json',
+    });
+
+    const command = parseCli(['batch', 'analyze-dead', '--dry-run']);
+    await executeCli(command);
+
+    expect(mockedUpdateDeadSubredditRegistry).toHaveBeenCalledTimes(1);
+    expect(mockedUpdateDeadSubredditRegistry).toHaveBeenCalledWith(
+      expect.objectContaining({
+        registryPath: 'extracted_files/dead-subreddits.json',
+        logDir: 'extracted_files',
+        dryRun: true,
+      }),
+    );
   });
 });
