@@ -56,7 +56,9 @@
     "compile-saved-remaining": "tsx src/cli.ts batch compile-saved-remaining",
     "compile-partial-remaining": "tsx src/cli.ts batch compile-partial-remaining",
     "analyze-dead-subreddits": "tsx src/cli.ts batch analyze-dead",
-    "fix-corrupted-files": "tsx src/scripts/fixCorruptedFiles.ts"
+    "fix-corrupted-files": "tsx src/scripts/fixCorruptedFiles.ts",
+    "prototype:android-cookie-browse": "tsx src/prototypes/androidCookieBrowse/tui.ts",
+    "export-android-cookie": "tsx src/scripts/exportAndroidCookie.ts"
   },
   "dependencies": {
     "@tailwindcss/forms": "^0.5.10",
