@@ -2,16 +2,16 @@ package com.boostlite.reddit.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Comment
@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,8 +39,11 @@ import com.boostlite.reddit.ui.relativeTime
 fun PostCard(
     post: RedditPost,
     onClick: () -> Unit,
+    onOpenMedia: () -> Unit,
+    onPlayMedia: () -> Unit = onOpenMedia,
     onDownload: () -> Unit,
     onSubredditClick: (String) -> Unit,
+    autoPlay: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -90,29 +94,47 @@ fun PostCard(
         )
 
         val preview = post.media.previewUrl
-        if (preview != null && post.media.type != MediaType.TEXT) {
+        val gifStream = post.media.videoUrl.takeIf { post.media.isGif }
+        if (preview != null || gifStream != null) {
             Spacer(Modifier.size(8.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .aspectRatio(16f / 10f)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(onClick = onOpenMedia),
                 contentAlignment = Alignment.Center,
             ) {
-                AsyncImage(
-                    model = preview,
-                    contentDescription = post.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().aspectRatio(16f / 10f),
-                )
-                if (post.media.type == MediaType.VIDEO || post.media.type == MediaType.GIF) {
-                    Icon(
-                        imageVector = Icons.Filled.PlayCircle,
-                        contentDescription = "Play",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.size(48.dp),
+                if (gifStream != null && autoPlay) {
+                    VideoPlayer(
+                        url = gifStream,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 480.dp),
+                        autoPlay = true,
+                        muted = true,
+                        showController = false,
                     )
+                } else {
+                    AsyncImage(
+                        model = preview,
+                        contentDescription = post.title,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .heightIn(max = 480.dp),
+                    )
+                }
+                if (post.media.type == MediaType.VIDEO && !post.media.isGif) {
+                    IconButton(onClick = onPlayMedia) {
+                        Icon(
+                            imageVector = Icons.Filled.PlayCircle,
+                            contentDescription = "Play",
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(48.dp),
+                        )
+                    }
                 }
                 if (post.media.type == MediaType.GALLERY) {
                     Box(

@@ -1,13 +1,18 @@
 package com.boostlite.reddit.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -19,22 +24,39 @@ import coil.compose.AsyncImage
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
 
-/** Full-size media rendering used on the post detail screen. */
+/** Media on the comments screen. Video stays a still until fullscreen. */
 @Composable
-fun MediaContent(post: RedditPost, modifier: Modifier = Modifier) {
+fun MediaContent(
+    post: RedditPost,
+    modifier: Modifier = Modifier,
+    onPlay: (() -> Unit)? = null,
+) {
     val media = post.media
     when (media.type) {
         MediaType.VIDEO -> {
             val stream = media.videoUrl
-            if (stream != null) {
+            if (media.isGif && stream != null) {
                 VideoPlayer(
                     url = stream,
                     modifier = modifier
                         .fillMaxWidth()
-                        .heightIn(min = 220.dp, max = 460.dp),
+                        .heightIn(min = 180.dp, max = 480.dp),
+                    autoPlay = true,
+                    muted = true,
+                    showController = false,
                 )
             } else {
-                media.previewUrl?.let { FullImage(it, post.title, modifier) }
+                Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    media.previewUrl?.let { FullImage(it, post.title, Modifier.fillMaxWidth()) }
+                    Icon(
+                        imageVector = Icons.Filled.PlayCircle,
+                        contentDescription = "Play",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .then(if (onPlay != null) Modifier.clickable(onClick = onPlay) else Modifier),
+                    )
+                }
             }
         }
 
@@ -62,7 +84,7 @@ fun MediaContent(post: RedditPost, modifier: Modifier = Modifier) {
             Column(modifier.fillMaxWidth()) {
                 media.previewUrl?.let { FullImage(it, post.title, Modifier.fillMaxWidth()) }
                 post.linkUrl?.let { url ->
-                    Text(
+                    LinkedBody(
                         text = url,
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
@@ -73,7 +95,7 @@ fun MediaContent(post: RedditPost, modifier: Modifier = Modifier) {
         }
 
         MediaType.TEXT, MediaType.NONE -> {
-            // Self text is rendered by the caller; nothing to show here.
+            media.previewUrl?.let { FullImage(it, post.title, modifier) }
         }
     }
 }

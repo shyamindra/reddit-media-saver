@@ -12,7 +12,7 @@ object RedditUrls {
             if (!sub.equals("frontpage", ignoreCase = true)) append("/r/").append(sub)
             append("/").append(sortPath).append(".json")
             append("?limit=50&raw_json=1&include_over_18=on")
-            if (sortPath == "top") append("&t=").append(time)
+            append("&t=").append(time)
             if (!after.isNullOrEmpty()) append("&after=").append(after)
         }
     }
@@ -29,7 +29,8 @@ object RedditUrls {
             append(BASE)
             if (!subreddit.isNullOrBlank()) append("/r/").append(subreddit.trim())
             append("/search.json?q=").append(q)
-            append("&sort=").append(sort).append("&t=").append(time)
+            append("&sort=").append(sort)
+            append("&t=").append(time)
             append("&type=link&raw_json=1&include_over_18=on&limit=50")
             if (!subreddit.isNullOrBlank()) append("&restrict_sr=on")
             if (!after.isNullOrEmpty()) append("&after=").append(after)

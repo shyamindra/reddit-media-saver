@@ -69,7 +69,7 @@ fun CommentItem(comment: RedditComment, modifier: Modifier = Modifier) {
                 )
             }
             Spacer(Modifier.size(4.dp))
-            Text(
+            LinkedBody(
                 text = comment.body,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,

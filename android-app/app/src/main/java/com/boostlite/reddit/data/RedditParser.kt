@@ -20,6 +20,56 @@ object RedditParser {
 
     private val IMAGE_EXT = listOf(".jpg", ".jpeg", ".png", ".webp")
 
+    private fun pathWithoutQuery(url: String): String =
+        url.substringBefore('?').substringBefore('#')
+
+    private fun hasImageExt(url: String): Boolean {
+        val path = pathWithoutQuery(url).lowercase()
+        return IMAGE_EXT.any { path.endsWith(it) }
+    }
+
+    private val DASH_HEIGHTS = intArrayOf(1080, 720, 480, 360, 270, 240, 220, 96)
+
+    /**
+     * Reddit listing thumbs often live on preview.redd.it with width=/format=.
+     * Hosted originals are i.redd.it without those resize params.
+     */
+    internal fun bestRedditImageUrl(raw: String): String {
+        val decoded = decode(raw.trim())
+        val base = pathWithoutQuery(decoded)
+        val host = hostOf(base)
+        if (host.equals("preview.redd.it", ignoreCase = true) ||
+            host.equals("i.redd.it", ignoreCase = true)
+        ) {
+            val file = base.substringAfterLast('/')
+            if (file.isNotEmpty()) return "https://i.redd.it/$file"
+        }
+        return decoded
+    }
+
+    private fun hostOf(url: String): String {
+        val afterScheme = url.substringAfter("://", missingDelimiterValue = "")
+        return afterScheme.substringBefore('/')
+    }
+
+    private fun stripResizeParams(raw: String): String {
+        val decoded = decode(raw.trim())
+        val base = pathWithoutQuery(decoded)
+        val query = decoded.substringAfter('?', "")
+        if (query.isEmpty()) return decoded
+        val kept = query.split('&').filter { part ->
+            val key = part.substringBefore('=').lowercase()
+            key !in setOf("width", "height", "crop", "format", "auto")
+        }
+        return if (kept.isEmpty()) base else "$base?${kept.joinToString("&")}"
+    }
+
+    private fun rewriteDashHeight(fallback: String, height: Int): String {
+        if (height <= 0) return fallback
+        val snapped = DASH_HEIGHTS.firstOrNull { it <= height } ?: height
+        return fallback.replace(Regex("DASH_\\d+"), "DASH_$snapped")
+    }
+
     // ---- Listings (feeds + search) ----
 
     fun parseListing(json: String): Listing<RedditPost> {
@@ -52,7 +102,7 @@ object RedditParser {
                     title = data.optString("title"),
                     subscribers = data.optInt("subscribers"),
                     over18 = data.optBoolean("over_18"),
-                    publicDescription = data.optString("public_description"),
+                    publicDescription = HtmlEntities.decode(data.optString("public_description")),
                 ),
             )
         }
@@ -87,7 +137,7 @@ object RedditParser {
             val node = children.getJSONObject(i)
             if (node.optString("kind") != "t1") continue // skip "more" stubs
             val data = node.optJSONObject("data") ?: continue
-            val body = data.optString("body").trim()
+            val body = HtmlEntities.decode(data.optString("body")).trim()
             if (body.isNotEmpty()) {
                 out.add(
                     RedditComment(
@@ -115,7 +165,7 @@ object RedditParser {
         return RedditPost(
             id = data.optString("id"),
             fullname = data.optString("name"),
-            title = decode(data.optString("title")),
+            title = HtmlEntities.decode(data.optString("title")),
             author = data.optString("author", "[deleted]"),
             subreddit = data.optString("subreddit"),
             permalink = permalink,
@@ -125,7 +175,7 @@ object RedditParser {
             createdUtc = data.optLong("created_utc"),
             over18 = data.optBoolean("over_18"),
             domain = data.optStringOrNull("domain"),
-            selftext = data.optStringOrNull("selftext")?.let { decode(it) },
+            selftext = data.optStringOrNull("selftext")?.let { HtmlEntities.decode(it) },
             media = resolveMedia(data),
         )
     }
@@ -150,53 +200,152 @@ object RedditParser {
         val redditVideo = data.optJSONObject("media")?.optJSONObject("reddit_video")
             ?: data.optJSONObject("secure_media")?.optJSONObject("reddit_video")
         if (redditVideo != null) {
-            val dash = redditVideo.optStringOrNull("dash_url")
-            val fallback = redditVideo.optStringOrNull("fallback_url")?.let { decode(it) }
-            val stream = dash ?: fallback
-            return PostMedia(
-                type = MediaType.VIDEO,
-                previewUrl = previewImage(data),
-                videoUrl = stream,
-                downloadUrl = fallback ?: stream,
-            )
+            return videoMedia(redditVideo, data, isGif = redditVideo.optBoolean("is_gif"))
         }
 
         val url = (data.optStringOrNull("url_overridden_by_dest") ?: data.optStringOrNull("url"))
             ?.let { decode(it) }
         val hint = data.optString("post_hint")
 
-        // 3. Direct image
-        if (url != null && (hint == "image" || IMAGE_EXT.any { url.lowercase().endsWith(it) })) {
-            return PostMedia(MediaType.IMAGE, previewUrl = url, downloadUrl = url)
+        // 3. Direct image (gifs are handled below so we can prefer mp4/DASH)
+        if (url != null && (hint == "image" || hasImageExt(url)) && !isGifPath(url)) {
+            val best = bestRedditImageUrl(url)
+            return PostMedia(MediaType.IMAGE, previewUrl = best, downloadUrl = best)
         }
 
-        // 4. GIF / GIFV
-        if (url != null && url.lowercase().endsWith(".gif")) {
-            return PostMedia(MediaType.GIF, previewUrl = url, downloadUrl = url)
+        // 4. GIFV / Imgur GIF — original mp4 is better than Reddit's transcode
+        if (url != null && pathWithoutQuery(url).lowercase().endsWith(".gifv")) {
+            val mp4 = pathWithoutQuery(url).dropLast(5) + ".mp4"
+            return PostMedia(
+                type = MediaType.VIDEO,
+                previewUrl = previewImage(data),
+                videoUrl = mp4,
+                downloadUrl = mp4,
+                isGif = true,
+            )
         }
-        if (url != null && url.lowercase().endsWith(".gifv")) {
-            val mp4 = url.dropLast(5) + ".mp4"
-            return PostMedia(MediaType.VIDEO, previewUrl = previewImage(data), videoUrl = mp4, downloadUrl = mp4)
+        siblingMp4(url)?.let { mp4 ->
+            return PostMedia(
+                type = MediaType.VIDEO,
+                previewUrl = previewImage(data),
+                videoUrl = mp4,
+                downloadUrl = mp4,
+                isGif = true,
+            )
         }
 
-        // 5. Rich video embeds (redgifs / imgur / gfycat) — use preview, link out for now
+        embedVideo(data, url, hint)?.let { return it }
+
+        // 5. GIF bytes when there is no playable transcode
+        if (url != null && pathWithoutQuery(url).lowercase().endsWith(".gif")) {
+            val best = bestRedditImageUrl(url)
+            return PostMedia(MediaType.GIF, previewUrl = best, downloadUrl = best, isGif = true)
+        }
+
+        // 6. Rich video embeds we could not play — keep as a link
         if (hint == "rich:video" || hint == "hosted:video") {
             return PostMedia(MediaType.LINK, previewUrl = previewImage(data), downloadUrl = url)
         }
 
-        // 6. Self / text
+        // 7. Self / text
         val self = data.optStringOrNull("selftext")
         if (data.optBoolean("is_self") || (!self.isNullOrBlank())) {
             return PostMedia(MediaType.TEXT, previewUrl = previewImage(data))
         }
 
-        // 7. External link
+        // 8. External link
         if (url != null) {
             val preview = previewImage(data)
             return PostMedia(MediaType.LINK, previewUrl = preview, downloadUrl = url)
         }
 
         return PostMedia(MediaType.NONE)
+    }
+
+    private fun videoMedia(video: JSONObject, data: JSONObject, isGif: Boolean): PostMedia {
+        val dash = video.optStringOrNull("dash_url")?.let { decode(it) }
+        val hls = video.optStringOrNull("hls_url")?.let { decode(it) }
+        val fallback = video.optStringOrNull("fallback_url")?.let { decode(it) }
+        val height = video.optInt("height")
+        val download = fallback?.let { rewriteDashHeight(it, height) }
+        val stream = when {
+            height > 0 && download != null -> download
+            dash != null -> dash
+            hls != null -> hls
+            else -> download
+        }
+        return PostMedia(
+            type = MediaType.VIDEO,
+            previewUrl = previewImage(data),
+            videoUrl = stream,
+            downloadUrl = download ?: stream,
+            isGif = isGif || video.optBoolean("is_gif"),
+        )
+    }
+
+    private fun embedVideo(data: JSONObject, url: String?, hint: String): PostMedia? {
+        val gifHost = isGifHost(url, data)
+        val previewVid = data.optJSONObject("preview")?.optJSONObject("reddit_video_preview")
+        if (previewVid != null && (gifHost || hint == "rich:video" || hint == "hosted:video" || previewVid.optBoolean("is_gif"))) {
+            return videoMedia(previewVid, data, isGif = true)
+        }
+        val mp4 = variantMp4(data)
+        if (mp4 != null && (gifHost || hint == "rich:video")) {
+            return PostMedia(
+                type = MediaType.VIDEO,
+                previewUrl = previewImage(data),
+                videoUrl = mp4,
+                downloadUrl = mp4,
+                isGif = true,
+            )
+        }
+        return null
+    }
+
+    private fun variantMp4(data: JSONObject): String? {
+        val images = data.optJSONObject("preview")?.optJSONArray("images") ?: return null
+        if (images.length() == 0) return null
+        val mp4 = images.getJSONObject(0).optJSONObject("variants")?.optJSONObject("mp4") ?: return null
+        var bestUrl: String? = null
+        var bestArea = -1
+        fun consider(node: JSONObject?) {
+            if (node == null) return
+            val url = node.optStringOrNull("url") ?: return
+            val area = node.optInt("width") * node.optInt("height")
+            if (area >= bestArea) {
+                bestArea = area
+                bestUrl = url
+            }
+        }
+        consider(mp4.optJSONObject("source"))
+        val resolutions = mp4.optJSONArray("resolutions")
+        if (resolutions != null) {
+            for (i in 0 until resolutions.length()) {
+                consider(resolutions.optJSONObject(i))
+            }
+        }
+        return bestUrl?.let { stripResizeParams(it) }
+    }
+
+    private fun isGifHost(url: String?, data: JSONObject): Boolean {
+        val domain = data.optString("domain").lowercase()
+        val u = (url ?: "").lowercase()
+        val hosts = listOf("redgifs.com", "gfycat.com", "gifdeliverynetwork.com", "giphy.com")
+        if (hosts.any { domain.contains(it) || u.contains(it) }) return true
+        return u.contains(".gif")
+    }
+
+    private fun isGifPath(url: String): Boolean {
+        val path = pathWithoutQuery(url).lowercase()
+        return path.endsWith(".gif") || path.endsWith(".gifv")
+    }
+
+    /** Imgur (and similar) expose a same-path .mp4 next to the .gif. */
+    private fun siblingMp4(url: String?): String? {
+        if (url == null || !pathWithoutQuery(url).lowercase().endsWith(".gif")) return null
+        val host = hostOf(pathWithoutQuery(url)).lowercase()
+        if ("imgur.com" !in host && "giphy.com" !in host) return null
+        return pathWithoutQuery(url).dropLast(4) + ".mp4"
     }
 
     private fun parseGallery(data: JSONObject): List<String> {
@@ -206,19 +355,64 @@ object RedditParser {
         for (i in 0 until order.length()) {
             val mediaId = order.getJSONObject(i).optString("media_id")
             val entry = meta.optJSONObject(mediaId) ?: continue
-            // "s" holds the source; "u" is a resized url, "gif"/"mp4" for animated.
-            val source = entry.optJSONObject("s") ?: continue
-            val u = source.optStringOrNull("u") ?: source.optStringOrNull("gif") ?: source.optStringOrNull("mp4")
-            if (u != null) urls.add(decode(u))
+            val url = galleryItemUrl(mediaId, entry) ?: continue
+            urls.add(url)
         }
         return urls
+    }
+
+    private fun galleryItemUrl(mediaId: String, entry: JSONObject): String? {
+        val source = entry.optJSONObject("s") ?: return null
+        val mp4 = source.optStringOrNull("mp4")
+        if (mp4 != null) return stripResizeParams(mp4)
+        val gif = source.optStringOrNull("gif")
+        if (gif != null) return bestRedditImageUrl(gif)
+        val u = source.optStringOrNull("u") ?: return null
+        if (mediaId.isNotBlank()) {
+            val mime = entry.optString("m")
+            val ext = extFromMime(mime, u)
+            return "https://i.redd.it/$mediaId.$ext"
+        }
+        return bestRedditImageUrl(u)
+    }
+
+    private fun extFromMime(mime: String, fallbackUrl: String): String {
+        val m = mime.lowercase()
+        return when {
+            "png" in m -> "png"
+            "gif" in m -> "gif"
+            "webp" in m -> "webp"
+            "jpeg" in m || "jpg" in m -> "jpg"
+            else -> {
+                val file = pathWithoutQuery(decode(fallbackUrl)).substringAfterLast('/')
+                file.substringAfterLast('.', "jpg").ifBlank { "jpg" }
+            }
+        }
     }
 
     private fun previewImage(data: JSONObject): String? {
         val images = data.optJSONObject("preview")?.optJSONArray("images") ?: return null
         if (images.length() == 0) return null
-        val source = images.getJSONObject(0).optJSONObject("source") ?: return null
-        return source.optStringOrNull("url")?.let { decode(it) }
+        val img = images.getJSONObject(0)
+        var bestUrl: String? = null
+        var bestArea = -1
+        fun consider(node: JSONObject?) {
+            if (node == null) return
+            val url = node.optStringOrNull("url") ?: return
+            val area = node.optInt("width") * node.optInt("height")
+            if (area >= bestArea) {
+                bestArea = area
+                bestUrl = url
+            }
+        }
+        consider(img.optJSONObject("source"))
+        val resolutions = img.optJSONArray("resolutions")
+        if (resolutions != null) {
+            for (i in 0 until resolutions.length()) {
+                consider(resolutions.optJSONObject(i))
+            }
+        }
+        return bestUrl?.let { bestRedditImageUrl(it) }
     }
 
     /** Reddit HTML-escapes ampersands in preview/media URLs. */

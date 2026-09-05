@@ -9,6 +9,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 
 /**
@@ -17,13 +19,28 @@ import androidx.media3.ui.PlayerView
  */
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
+fun VideoPlayer(
+    url: String,
+    modifier: Modifier = Modifier,
+    autoPlay: Boolean = false,
+    muted: Boolean = false,
+    showController: Boolean = true,
+) {
     val context = LocalContext.current
-    val player = remember(url) {
-        ExoPlayer.Builder(context).build().apply {
+    val player = remember(url, muted, autoPlay) {
+        val tracks = DefaultTrackSelector(context).apply {
+            setParameters(
+                buildUponParameters()
+                    .setForceHighestSupportedBitrate(true)
+                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                    .setViewportSize(Int.MAX_VALUE, Int.MAX_VALUE, true),
+            )
+        }
+        ExoPlayer.Builder(context).setTrackSelector(tracks).build().apply {
             setMediaItem(MediaItem.fromUri(url))
             prepare()
-            playWhenReady = false
+            playWhenReady = autoPlay
+            volume = if (muted) 0f else 1f
             repeatMode = Player.REPEAT_MODE_ONE
         }
     }
@@ -37,7 +54,9 @@ fun VideoPlayer(url: String, modifier: Modifier = Modifier) {
         factory = { ctx ->
             PlayerView(ctx).apply {
                 this.player = player
-                useController = true
+                useController = showController
+                isClickable = showController
+                resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
             }
         },
     )

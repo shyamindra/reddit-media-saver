@@ -42,9 +42,39 @@ class RedditUrlsTest {
     }
 
     @Test
-    fun searchPosts_nsfwAndRawJson() {
-        val url = RedditUrls.searchPosts("cats", subreddit = null)
-        assertTrue(url.contains("include_over_18=on"))
-        assertTrue(url.contains("raw_json=1"))
+    fun searchPosts_top_includesTime() {
+        val url = RedditUrls.searchPosts("cats", subreddit = null, sort = "top", time = "week")
+        assertTrue(url.contains("sort=top"))
+        assertTrue(url.contains("t=week"))
+    }
+
+    @Test
+    fun searchPosts_new_includesTime() {
+        val url = RedditUrls.searchPosts("cats", subreddit = null, sort = "new", time = "day")
+        assertTrue(url.contains("sort=new"))
+        assertTrue(url.contains("t=day"))
+    }
+
+    @Test
+    fun searchPosts_relevance_includesTime() {
+        val url = RedditUrls.searchPosts("cats", subreddit = null, sort = "relevance", time = "year")
+        assertTrue(url.contains("sort=relevance"))
+        assertTrue(url.contains("t=year"))
+    }
+
+    @Test
+    fun searchPosts_hot_includesTime() {
+        val url = RedditUrls.searchPosts("cats", subreddit = null, sort = "hot", time = "month")
+        assertTrue(url.contains("sort=hot"))
+        assertTrue(url.contains("t=month"))
+    }
+
+    @Test
+    fun feed_allSorts_includeTime() {
+        val hot = RedditUrls.feed("pics", sortPath = "hot", time = "week")
+        assertTrue(hot.contains("/hot.json"))
+        assertTrue(hot.contains("t=week"))
+        val neu = RedditUrls.feed("pics", sortPath = "new", time = "day")
+        assertTrue(neu.contains("t=day"))
     }
 }

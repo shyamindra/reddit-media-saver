@@ -1,5 +1,6 @@
 package com.boostlite.reddit.ui.screens.post
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,9 +36,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
 import com.boostlite.reddit.data.model.MediaType
+import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.CommentItem
 import com.boostlite.reddit.ui.components.ErrorState
+import com.boostlite.reddit.ui.components.LinkedBody
 import com.boostlite.reddit.ui.components.MediaContent
 import com.boostlite.reddit.ui.compactCount
 import com.boostlite.reddit.ui.relativeTime
@@ -47,6 +50,7 @@ import com.boostlite.reddit.ui.relativeTime
 fun PostScreen(
     permalink: String,
     onBack: () -> Unit,
+    onOpenMedia: (RedditPost, Boolean) -> Unit,
     viewModel: PostViewModel = viewModel(),
 ) {
     LaunchedEffect(permalink) { viewModel.load(permalink) }
@@ -119,9 +123,15 @@ fun PostScreen(
                                     fontWeight = FontWeight.SemiBold,
                                 )
                             }
-                            MediaContent(post = post, modifier = Modifier.fillMaxWidth())
+                            MediaContent(
+                                post = post,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenMedia(post, post.media.isGif) },
+                                onPlay = { onOpenMedia(post, true) },
+                            )
                             if (post.media.type == MediaType.TEXT && !post.selftext.isNullOrBlank()) {
-                                Text(
+                                LinkedBody(
                                     text = post.selftext,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface,

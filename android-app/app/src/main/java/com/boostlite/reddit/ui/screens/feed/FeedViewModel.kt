@@ -9,6 +9,7 @@ import com.boostlite.reddit.data.SessionExpiredException
 import com.boostlite.reddit.data.model.FeedSort
 import com.boostlite.reddit.data.model.FeedTarget
 import com.boostlite.reddit.data.model.RedditPost
+import com.boostlite.reddit.data.model.SearchTime
 import com.boostlite.reddit.ui.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,6 +28,9 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
 
     private val _sort = MutableStateFlow(FeedSort.HOT)
     val sort: StateFlow<FeedSort> = _sort.asStateFlow()
+
+    private val _time = MutableStateFlow(SearchTime.ALL)
+    val time: StateFlow<SearchTime> = _time.asStateFlow()
 
     private val _state = MutableStateFlow<UiState<List<RedditPost>>>(UiState.Loading)
     val state: StateFlow<UiState<List<RedditPost>>> = _state.asStateFlow()
@@ -72,6 +76,12 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
         load()
     }
 
+    fun setTime(time: SearchTime) {
+        if (_time.value == time) return
+        _time.value = time
+        load()
+    }
+
     fun load() {
         after = null
         loaded.clear()
@@ -94,7 +104,12 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     private fun fetch(reset: Boolean) {
         viewModelScope.launch {
             try {
-                val listing = repo.feed(feedTarget.listingSubreddit(), _sort.value, after = after)
+                val listing = repo.feed(
+                    feedTarget.listingSubreddit(),
+                    _sort.value,
+                    time = _time.value.path,
+                    after = after,
+                )
                 if (reset) loaded.clear()
                 loaded.addAll(listing.items)
                 after = listing.after

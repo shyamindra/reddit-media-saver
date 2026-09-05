@@ -2,6 +2,7 @@ package com.boostlite.reddit.ui.screens.feed
 
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,14 +52,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
 import com.boostlite.reddit.data.model.FeedSort
 import com.boostlite.reddit.data.model.FeedTarget
+import com.boostlite.reddit.data.model.RedditPost
+import com.boostlite.reddit.data.model.SearchTime
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.ErrorState
 import com.boostlite.reddit.ui.components.PostCard
+import com.boostlite.reddit.ui.list.centeredKey
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FeedScreen(
     onOpenPost: (String) -> Unit,
+    onOpenMedia: (RedditPost, Boolean) -> Unit,
     onOpenSearch: (String?) -> Unit,
     onOpenSettings: () -> Unit,
     viewModel: FeedViewModel = viewModel(),
@@ -66,6 +72,7 @@ fun FeedScreen(
     val target by viewModel.target.collectAsStateWithLifecycle()
     val starred by viewModel.starredNames.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
+    val time by viewModel.time.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -134,6 +141,7 @@ fun FeedScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             SortRow(current = sort, onSelect = viewModel::setSort)
+            TimeRow(current = time, onSelect = viewModel::setTime)
             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
             when (val s = state) {
@@ -146,6 +154,7 @@ fun FeedScreen(
                 )
                 is UiState.Success -> {
                     val app = BoostLiteApp.instance
+                    val centeredId = listState.centeredKey()
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
@@ -154,7 +163,10 @@ fun FeedScreen(
                         items(s.data, key = { it.id }) { post ->
                             PostCard(
                                 post = post,
+                                autoPlay = post.id == centeredId,
                                 onClick = { onOpenPost(post.permalink) },
+                                onOpenMedia = { onOpenMedia(post, post.media.isGif) },
+                                onPlayMedia = { onOpenMedia(post, true) },
                                 onDownload = {
                                     post.media.downloadUrl?.let { url ->
                                         app.downloader.enqueue(
@@ -288,6 +300,7 @@ private fun SortRow(current: FeedSort, onSelect: (FeedSort) -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 8.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -296,6 +309,25 @@ private fun SortRow(current: FeedSort, onSelect: (FeedSort) -> Unit) {
                 selected = s == current,
                 onClick = { onSelect(s) },
                 label = { Text(s.label) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun TimeRow(current: SearchTime, onSelect: (SearchTime) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        SearchTime.entries.forEach { t ->
+            FilterChip(
+                selected = t == current,
+                onClick = { onSelect(t) },
+                label = { Text(t.label) },
             )
         }
     }

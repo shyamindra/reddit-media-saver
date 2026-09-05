@@ -14,6 +14,8 @@ data class PostMedia(
     val galleryUrls: List<String> = emptyList(),
     /** The best single URL to hand to the downloader. */
     val downloadUrl: String? = null,
+    /** Looping silent clip (RedGIFs, gifv, reddit gif video). */
+    val isGif: Boolean = false,
 )
 
 data class RedditPost(
@@ -52,6 +54,26 @@ enum class FeedSort(val path: String, val label: String) {
     NEW("new", "New"),
     TOP("top", "Top"),
     RISING("rising", "Rising"),
+}
+
+enum class SearchSort(val path: String, val label: String) {
+    RELEVANCE("relevance", "Relevance"),
+    HOT("hot", "Hot"),
+    NEW("new", "New"),
+    TOP("top", "Top"),
+    COMMENTS("comments", "Comments"),
+    ;
+
+    val usesTime: Boolean get() = true
+}
+
+enum class SearchTime(val path: String, val label: String) {
+    HOUR("hour", "Hour"),
+    DAY("day", "Day"),
+    WEEK("week", "Week"),
+    MONTH("month", "Month"),
+    YEAR("year", "Year"),
+    ALL("all", "All"),
 }
 
 data class Subreddit(
