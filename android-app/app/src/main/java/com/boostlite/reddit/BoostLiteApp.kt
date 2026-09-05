@@ -6,13 +6,12 @@ import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
-import com.boostlite.reddit.data.BookmarkStore
 import com.boostlite.reddit.data.CookieStore
-import com.boostlite.reddit.data.FeedSession
+import com.boostlite.reddit.data.FeedTargetStore
+import com.boostlite.reddit.data.PrefsStarredSubsPersist
 import com.boostlite.reddit.data.RedditClient
 import com.boostlite.reddit.data.RedditRepository
 import com.boostlite.reddit.download.MediaDownloader
-import okhttp3.OkHttpClient
 
 /**
  * Poor-man's DI: build the singletons once and hand them to ViewModels via a
@@ -22,9 +21,9 @@ class BoostLiteApp : Application(), ImageLoaderFactory {
 
     lateinit var cookieStore: CookieStore
         private set
-    lateinit var bookmarkStore: BookmarkStore
+    lateinit var feedTarget: FeedTargetStore
         private set
-    lateinit var feedSession: FeedSession
+    lateinit var redditClient: RedditClient
         private set
     lateinit var repository: RedditRepository
         private set
@@ -34,29 +33,19 @@ class BoostLiteApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         cookieStore = CookieStore(this)
-        bookmarkStore = BookmarkStore(this)
-        feedSession = FeedSession(bookmarkStore)
-        repository = RedditRepository(RedditClient(cookieStore))
-        downloader = MediaDownloader(this)
+        feedTarget = FeedTargetStore(PrefsStarredSubsPersist(this))
+        redditClient = RedditClient(cookieStore)
+        repository = RedditRepository(redditClient)
+        downloader = MediaDownloader(this, redditClient)
         instance = this
     }
 
     /**
-     * Coil loads Reddit preview images, which require the same cookies + UA as
-     * the API (i.reddit / preview.redd.it are auth-gated too).
+     * Coil loads Reddit preview images with the same Cookie + UA as JSON.
      */
     override fun newImageLoader(): ImageLoader {
-        val okHttp = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val builder = chain.request().newBuilder()
-                    .header("User-Agent", RedditClient.DESKTOP_UA)
-                val cookie = cookieStore.currentHeader()
-                if (cookie.isNotEmpty()) builder.header("Cookie", cookie)
-                chain.proceed(builder.build())
-            }
-            .build()
         return ImageLoader.Builder(this)
-            .okHttpClient(okHttp)
+            .okHttpClient(redditClient.http)
             .crossfade(true)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)

@@ -161,11 +161,10 @@ fun FeedScreen(
                                             url = url,
                                             subreddit = post.subreddit,
                                             title = post.title,
-                                            cookieHeader = app.cookieStore.currentHeader(),
                                         )
                                     }
                                 },
-                                onSubredditClick = { viewModel.open(FeedTarget.Sub(it)) },
+                                onSubredditClick = { viewModel.openSub(it) },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
@@ -184,15 +183,15 @@ fun FeedScreen(
             onDismiss = { showBookmarks = false },
             onOpenStarred = {
                 showBookmarks = false
-                viewModel.open(FeedTarget.Starred)
+                viewModel.openStarred()
             },
             onOpenAll = {
                 showBookmarks = false
-                viewModel.open(FeedTarget.All)
+                viewModel.openAll()
             },
             onOpenSub = {
                 showBookmarks = false
-                viewModel.open(FeedTarget.Sub(it))
+                viewModel.openSub(it)
             },
             onUnstar = viewModel::unstar,
             onGoTo = {

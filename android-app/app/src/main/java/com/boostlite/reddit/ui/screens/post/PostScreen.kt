@@ -76,7 +76,6 @@ fun PostScreen(
                                     url = url,
                                     subreddit = post.subreddit,
                                     title = post.title,
-                                    cookieHeader = app.cookieStore.currentHeader(),
                                 )
                             }
                         }) {

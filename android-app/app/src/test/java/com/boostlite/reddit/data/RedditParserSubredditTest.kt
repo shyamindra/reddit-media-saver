@@ -30,6 +30,18 @@ class RedditParserSubredditTest {
     }
 
     @Test
+    fun parseListing_keepsStickied() {
+        val json = """
+            {"kind":"Listing","data":{"after":null,"children":[
+              {"kind":"t3","data":{"id":"pin","name":"t3_pin","title":"Pinned","author":"mod","subreddit":"test","permalink":"/r/test/comments/pin/x/","stickied":true}}
+            ]}}
+        """.trimIndent()
+        val listing = RedditParser.parseListing(json)
+        assertEquals(1, listing.items.size)
+        assertEquals("pin", listing.items[0].id)
+    }
+
+    @Test
     fun parseSubredditListing_skipsMissingData() {
         val json = """{"kind":"Listing","data":{"children":[{"kind":"t5"}]}}"""
         val listing = RedditParser.parseSubredditListing(json)

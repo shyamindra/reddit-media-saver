@@ -40,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
-import com.boostlite.reddit.data.model.FeedTarget
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.ErrorState
 import com.boostlite.reddit.ui.components.PostCard
@@ -61,7 +60,7 @@ fun SearchScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val app = BoostLiteApp.instance
     val context = LocalContext.current
-    val starredNames by app.bookmarkStore.names.collectAsStateWithLifecycle()
+    val starredNames by viewModel.starredNames.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -166,11 +165,11 @@ fun SearchScreen(
                                         subreddit = sub,
                                         starred = starred,
                                         onClick = {
-                                            app.feedSession.open(FeedTarget.Sub(sub.name))
+                                            viewModel.openSub(sub.name)
                                             onBack()
                                         },
                                         onToggleStar = {
-                                            val now = app.bookmarkStore.toggle(sub.name)
+                                            val now = viewModel.toggleStar(sub.name)
                                             if (!now && !starred) {
                                                 Toast.makeText(context, "Starred limit reached", Toast.LENGTH_SHORT).show()
                                             }
@@ -201,12 +200,11 @@ fun SearchScreen(
                                                     url = url,
                                                     subreddit = post.subreddit,
                                                     title = post.title,
-                                                    cookieHeader = app.cookieStore.currentHeader(),
                                                 )
                                             }
                                         },
                                         onSubredditClick = {
-                                            app.feedSession.open(FeedTarget.Sub(it))
+                                            viewModel.openSub(it)
                                             onBack()
                                         },
                                     )

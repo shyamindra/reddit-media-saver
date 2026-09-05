@@ -20,11 +20,10 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
 
     private val boost = app as BoostLiteApp
     private val repo = boost.repository
-    private val bookmarks = boost.bookmarkStore
-    private val session = boost.feedSession
+    private val feedTarget = boost.feedTarget
 
-    val target: StateFlow<FeedTarget> = session.target
-    val starredNames: StateFlow<List<String>> = bookmarks.names
+    val target: StateFlow<FeedTarget> = feedTarget.target
+    val starredNames: StateFlow<List<String>> = feedTarget.starredNames
 
     private val _sort = MutableStateFlow(FeedSort.HOT)
     val sort: StateFlow<FeedSort> = _sort.asStateFlow()
@@ -43,49 +42,30 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         viewModelScope.launch {
-            combine(boost.cookieStore.cookieHeader, session.target, bookmarks.names) { _, target, names ->
-                if (target is FeedTarget.Starred && names.isEmpty()) {
-                    session.open(FeedTarget.All)
-                }
-                target
+            combine(boost.cookieStore.cookieHeader, feedTarget.target, feedTarget.starredNames) { _, _, _ ->
             }.collect { load() }
         }
     }
 
-    fun title(): String = when (val t = session.target.value) {
-        is FeedTarget.Starred -> "Starred"
-        is FeedTarget.All -> "r/all"
-        is FeedTarget.Sub -> "r/${t.name}"
-    }
-
-    fun searchSubArg(): String? = (session.target.value as? FeedTarget.Sub)?.name
+    fun searchSubArg(): String? = (feedTarget.target.value as? FeedTarget.Sub)?.name
 
     fun isCurrentSubStarred(): Boolean {
-        val t = session.target.value
-        return t is FeedTarget.Sub && bookmarks.isStarred(t.name)
+        val t = feedTarget.target.value
+        return t is FeedTarget.Sub && feedTarget.isStarred(t.name)
     }
-
-    fun showTitleStar(): Boolean = session.target.value is FeedTarget.Sub
 
     fun toggleCurrentStar(): Boolean? {
-        val t = session.target.value as? FeedTarget.Sub ?: return null
-        return bookmarks.toggle(t.name)
+        val t = feedTarget.target.value as? FeedTarget.Sub ?: return null
+        return feedTarget.toggleStar(t.name)
     }
 
-    fun starSub(name: String): Boolean = bookmarks.add(name)
+    fun unstar(name: String) = feedTarget.unstar(name)
 
-    fun unstar(name: String) = bookmarks.remove(name)
+    fun openStarred() = feedTarget.openStarred()
+    fun openAll() = feedTarget.openAll()
+    fun openSub(name: String) = feedTarget.openSub(name)
 
-    fun open(target: FeedTarget) = session.open(target)
-
-    fun goToSubreddit(raw: String) {
-        val name = com.boostlite.reddit.data.BookmarkNames.normalize(raw)
-        when {
-            name == null && raw.trim().equals("all", ignoreCase = true) -> session.open(FeedTarget.All)
-            name == null && raw.trim().equals("r/all", ignoreCase = true) -> session.open(FeedTarget.All)
-            name != null -> session.open(FeedTarget.Sub(name))
-        }
-    }
+    fun goToSubreddit(raw: String) = feedTarget.openSub(raw)
 
     fun setSort(sort: FeedSort) {
         _sort.value = sort
@@ -111,18 +91,10 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
         fetch(reset = false)
     }
 
-    private fun listingSubreddit(): String {
-        return when (val t = session.target.value) {
-            is FeedTarget.Starred -> bookmarks.joinedForFeed() ?: "all"
-            is FeedTarget.All -> "all"
-            is FeedTarget.Sub -> t.name
-        }
-    }
-
     private fun fetch(reset: Boolean) {
         viewModelScope.launch {
             try {
-                val listing = repo.feed(listingSubreddit(), _sort.value, after = after)
+                val listing = repo.feed(feedTarget.listingSubreddit(), _sort.value, after = after)
                 if (reset) loaded.clear()
                 loaded.addAll(listing.items)
                 after = listing.after

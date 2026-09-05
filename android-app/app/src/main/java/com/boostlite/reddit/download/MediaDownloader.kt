@@ -14,15 +14,19 @@ import com.boostlite.reddit.data.RedditClient
  * Note: v.redd.it videos have separate audio tracks; this prototype downloads
  * the video track only. Muxing audio would need ffmpeg/mp4parser (follow-up).
  */
-class MediaDownloader(private val appContext: Context) {
+class MediaDownloader(
+    private val appContext: Context,
+    private val redditClient: RedditClient,
+) {
 
-    fun enqueue(url: String, subreddit: String, title: String, cookieHeader: String) {
+    fun enqueue(url: String, subreddit: String, title: String) {
         val fileName = buildFileName(url, subreddit, title)
         val request = DownloadManager.Request(Uri.parse(url)).apply {
             setTitle(fileName)
             setDescription("BoostLite download")
-            addRequestHeader("User-Agent", RedditClient.DESKTOP_UA)
-            if (cookieHeader.isNotEmpty()) addRequestHeader("Cookie", cookieHeader)
+            for ((name, value) in redditClient.authHeaders()) {
+                addRequestHeader(name, value)
+            }
             setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             setDestinationInExternalPublicDir(
                 Environment.DIRECTORY_DOWNLOADS,

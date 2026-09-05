@@ -13,35 +13,34 @@ class SessionExpiredException(message: String) : IOException(message)
 class RateLimitedException(message: String) : IOException(message)
 
 /**
- * Thin OkHttp wrapper that attaches the imported reddit.com cookies and a
- * desktop User-Agent to every request, then returns the raw response body.
- *
- * This mirrors the desktop tool's approach (Cookie header + browser UA against
- * the `.json` endpoints) — the only authenticated path Reddit still allows for
- * unofficial clients.
+ * Authenticated HTTP: Cookie + desktop User-Agent on every Reddit request.
+ * JSON fetch, Coil, and Save downloads share [authHeaders] / [http].
  */
 class RedditClient(private val cookieStore: CookieStore) {
 
-    private val http: OkHttpClient = OkHttpClient.Builder()
+    val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .addInterceptor { chain ->
-            val cookie = cookieStore.currentHeader()
-            val builder: Request.Builder = chain.request().newBuilder()
-                .header("User-Agent", DESKTOP_UA)
-                .header("Accept", "application/json, text/plain, */*")
-                .header("Accept-Language", "en-US,en;q=0.9")
-            if (cookie.isNotEmpty()) {
-                builder.header("Cookie", cookie)
+            val builder = chain.request().newBuilder()
+            for ((name, value) in authHeaders(cookieStore.currentHeader())) {
+                builder.header(name, value)
             }
             chain.proceed(builder.build())
         }
         .build()
 
+    /** Headers for callers that are not OkHttp (system DownloadManager). */
+    fun authHeaders(): Map<String, String> = authHeaders(cookieStore.currentHeader())
+
     /** GET a JSON endpoint and return the body as a String, or throw on failure. */
     @Throws(IOException::class)
     fun getJson(url: String): String {
-        val request = Request.Builder().url(url).get().build()
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "application/json, text/plain, */*")
+            .get()
+            .build()
         http.newCall(request).execute().use { response: Response ->
             when {
                 response.isSuccessful -> {
@@ -63,5 +62,16 @@ class RedditClient(private val cookieStore: CookieStore) {
     companion object {
         const val DESKTOP_UA =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
+
+        fun authHeaders(cookieHeader: String): Map<String, String> {
+            val headers = linkedMapOf(
+                "User-Agent" to DESKTOP_UA,
+                "Accept-Language" to "en-US,en;q=0.9",
+            )
+            if (cookieHeader.isNotEmpty()) {
+                headers["Cookie"] = cookieHeader
+            }
+            return headers
+        }
     }
 }

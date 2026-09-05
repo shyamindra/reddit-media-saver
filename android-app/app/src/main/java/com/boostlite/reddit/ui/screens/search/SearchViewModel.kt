@@ -23,7 +23,15 @@ data class SearchResults(
 
 class SearchViewModel(app: Application) : AndroidViewModel(app) {
 
-    private val repo = (app as BoostLiteApp).repository
+    private val boost = app as BoostLiteApp
+    private val repo = boost.repository
+    private val feedTarget = boost.feedTarget
+
+    val starredNames = feedTarget.starredNames
+
+    fun openSub(name: String) = feedTarget.openSub(name)
+
+    fun toggleStar(name: String): Boolean = feedTarget.toggleStar(name)
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()

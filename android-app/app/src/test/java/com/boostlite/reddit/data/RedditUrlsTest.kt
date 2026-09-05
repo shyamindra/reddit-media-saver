@@ -33,4 +33,18 @@ class RedditUrlsTest {
         val url = RedditUrls.feed("pics+cats", sortPath = "hot")
         assertTrue(url.contains("/r/pics+cats/hot.json"))
     }
+
+    @Test
+    fun feed_nsfwAndRawJson() {
+        val url = RedditUrls.feed("pics", sortPath = "hot")
+        assertTrue(url.contains("include_over_18=on"))
+        assertTrue(url.contains("raw_json=1"))
+    }
+
+    @Test
+    fun searchPosts_nsfwAndRawJson() {
+        val url = RedditUrls.searchPosts("cats", subreddit = null)
+        assertTrue(url.contains("include_over_18=on"))
+        assertTrue(url.contains("raw_json=1"))
+    }
 }
