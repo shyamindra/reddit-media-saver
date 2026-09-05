@@ -1,5 +1,6 @@
 package com.boostlite.reddit.ui.screens.search
 
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,14 +33,18 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
+import com.boostlite.reddit.data.model.FeedTarget
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.ErrorState
 import com.boostlite.reddit.ui.components.PostCard
+import com.boostlite.reddit.ui.components.SubredditRow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +60,8 @@ fun SearchScreen(
     val restrict by viewModel.restrictSub.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val app = BoostLiteApp.instance
+    val context = LocalContext.current
+    val starredNames by app.bookmarkStore.names.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -88,7 +95,6 @@ fun SearchScreen(
                 keyboardActions = KeyboardActions(onSearch = { viewModel.submit() }),
             )
 
-            // Scope toggle: only offered when we arrived from a subreddit.
             if (restrictSubreddit != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
@@ -130,7 +136,8 @@ fun SearchScreen(
                     onRetry = viewModel::submit,
                 )
                 is UiState.Success -> {
-                    if (s.data.isEmpty()) {
+                    val results = s.data
+                    if (results.communities.isEmpty() && results.posts.isEmpty()) {
                         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text(
                                 text = "No results.",
@@ -143,23 +150,68 @@ fun SearchScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(bottom = 24.dp),
                         ) {
-                            items(s.data, key = { it.id }) { post ->
-                                PostCard(
-                                    post = post,
-                                    onClick = { onOpenPost(post.permalink) },
-                                    onDownload = {
-                                        post.media.downloadUrl?.let { url ->
-                                            app.downloader.enqueue(
-                                                url = url,
-                                                subreddit = post.subreddit,
-                                                title = post.title,
-                                                cookieHeader = app.cookieStore.currentHeader(),
-                                            )
-                                        }
-                                    },
-                                    onSubredditClick = { },
-                                )
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                            if (results.communities.isNotEmpty()) {
+                                item {
+                                    Text(
+                                        "Communities",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    )
+                                }
+                                items(results.communities, key = { "sr-${it.name}" }) { sub ->
+                                    val starred = starredNames.any { it.equals(sub.name, ignoreCase = true) }
+                                    SubredditRow(
+                                        subreddit = sub,
+                                        starred = starred,
+                                        onClick = {
+                                            app.feedSession.open(FeedTarget.Sub(sub.name))
+                                            onBack()
+                                        },
+                                        onToggleStar = {
+                                            val now = app.bookmarkStore.toggle(sub.name)
+                                            if (!now && !starred) {
+                                                Toast.makeText(context, "Starred limit reached", Toast.LENGTH_SHORT).show()
+                                            }
+                                        },
+                                    )
+                                }
+                                item { HorizontalDivider(color = MaterialTheme.colorScheme.outline) }
+                            }
+                            if (results.posts.isNotEmpty()) {
+                                if (results.communities.isNotEmpty()) {
+                                    item {
+                                        Text(
+                                            "Posts",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                        )
+                                    }
+                                }
+                                items(results.posts, key = { it.id }) { post ->
+                                    PostCard(
+                                        post = post,
+                                        onClick = { onOpenPost(post.permalink) },
+                                        onDownload = {
+                                            post.media.downloadUrl?.let { url ->
+                                                app.downloader.enqueue(
+                                                    url = url,
+                                                    subreddit = post.subreddit,
+                                                    title = post.title,
+                                                    cookieHeader = app.cookieStore.currentHeader(),
+                                                )
+                                            }
+                                        },
+                                        onSubredditClick = {
+                                            app.feedSession.open(FeedTarget.Sub(it))
+                                            onBack()
+                                        },
+                                    )
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                                }
                             }
                         }
                     }

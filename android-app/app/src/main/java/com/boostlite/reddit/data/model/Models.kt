@@ -53,3 +53,17 @@ enum class FeedSort(val path: String, val label: String) {
     TOP("top", "Top"),
     RISING("rising", "Rising"),
 }
+
+data class Subreddit(
+    val name: String,
+    val title: String,
+    val subscribers: Int,
+    val over18: Boolean,
+    val publicDescription: String,
+)
+
+sealed class FeedTarget {
+    data object Starred : FeedTarget()
+    data object All : FeedTarget()
+    data class Sub(val name: String) : FeedTarget()
+}

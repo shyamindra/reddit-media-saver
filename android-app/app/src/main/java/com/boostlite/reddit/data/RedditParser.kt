@@ -5,6 +5,7 @@ import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.PostMedia
 import com.boostlite.reddit.data.model.RedditComment
 import com.boostlite.reddit.data.model.RedditPost
+import com.boostlite.reddit.data.model.Subreddit
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,6 +34,29 @@ object RedditParser {
         }
         val after = root.optStringOrNull("after")
         return Listing(posts, after)
+    }
+
+    fun parseSubredditListing(json: String): Listing<Subreddit> {
+        val root = JSONObject(json).optJSONObject("data") ?: return Listing(emptyList(), null)
+        val children = root.optJSONArray("children") ?: JSONArray()
+        val subs = ArrayList<Subreddit>(children.length())
+        for (i in 0 until children.length()) {
+            val child = children.optJSONObject(i) ?: continue
+            if (child.optString("kind") != "t5") continue
+            val data = child.optJSONObject("data") ?: continue
+            val name = data.optString("display_name").trim()
+            if (name.isEmpty()) continue
+            subs.add(
+                Subreddit(
+                    name = name,
+                    title = data.optString("title"),
+                    subscribers = data.optInt("subscribers"),
+                    over18 = data.optBoolean("over_18"),
+                    publicDescription = data.optString("public_description"),
+                ),
+            )
+        }
+        return Listing(subs, root.optStringOrNull("after"))
     }
 
     // ---- Post + comments (permalink.json returns [postListing, commentListing]) ----

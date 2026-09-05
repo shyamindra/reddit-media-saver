@@ -1,7 +1,7 @@
 # BoostLite: subreddit search, scoped search, and starred homes
 
 **Date:** 2026-09-05  
-**Status:** approved design (awaiting implementation plan)  
+**Status:** implementation in progress  
 **App:** `android-app/` (BoostLite)
 
 ## Goal

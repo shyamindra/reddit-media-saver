@@ -1,5 +1,6 @@
 package com.boostlite.reddit.ui.screens.feed
 
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,7 +16,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -23,27 +25,31 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
 import com.boostlite.reddit.data.model.FeedSort
+import com.boostlite.reddit.data.model.FeedTarget
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.ErrorState
 import com.boostlite.reddit.ui.components.PostCard
@@ -57,14 +63,15 @@ fun FeedScreen(
     viewModel: FeedViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val subreddit by viewModel.subreddit.collectAsStateWithLifecycle()
+    val target by viewModel.target.collectAsStateWithLifecycle()
+    val starred by viewModel.starredNames.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
-    var showSubDialog by remember { mutableStateOf(false) }
+    var showBookmarks by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    // Infinite scroll: load more when near the end.
     val shouldLoadMore by remember {
         derivedStateOf {
             val last = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -76,6 +83,12 @@ fun FeedScreen(
         if (shouldLoadMore) viewModel.loadMore()
     }
 
+    val title = when (target) {
+        is FeedTarget.Starred -> "Starred"
+        is FeedTarget.All -> "r/all"
+        is FeedTarget.Sub -> "r/${(target as FeedTarget.Sub).name}"
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -85,13 +98,31 @@ fun FeedScreen(
                 ),
                 title = {
                     Text(
-                        text = if (subreddit == "all") "r/all" else "r/$subreddit",
+                        text = title,
                         fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { showSubDialog = true },
+                        modifier = Modifier.clickable { showBookmarks = true },
                     )
                 },
                 actions = {
-                    IconButton(onClick = { onOpenSearch(if (subreddit == "all") null else subreddit) }) {
+                    if (target is FeedTarget.Sub) {
+                        val starredHere = viewModel.isCurrentSubStarred()
+                        IconButton(
+                            onClick = {
+                                val nowStarred = viewModel.toggleCurrentStar()
+                                if (nowStarred == false && !starredHere) {
+                                    Toast.makeText(context, "Starred limit reached", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                        ) {
+                            Icon(
+                                imageVector = if (starredHere) Icons.Filled.Star else Icons.Outlined.Star,
+                                contentDescription = if (starredHere) "Unstar subreddit" else "Star subreddit",
+                                tint = if (starredHere) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+                    IconButton(onClick = { onOpenSearch(viewModel.searchSubArg()) }) {
                         Icon(Icons.Filled.Search, contentDescription = "Search")
                     }
                     IconButton(onClick = onOpenSettings) {
@@ -134,7 +165,7 @@ fun FeedScreen(
                                         )
                                     }
                                 },
-                                onSubredditClick = { viewModel.setSubreddit(it) },
+                                onSubredditClick = { viewModel.open(FeedTarget.Sub(it)) },
                             )
                             HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
@@ -147,15 +178,109 @@ fun FeedScreen(
         }
     }
 
-    if (showSubDialog) {
-        SubredditDialog(
-            initial = subreddit,
-            onDismiss = { showSubDialog = false },
-            onConfirm = {
-                showSubDialog = false
-                viewModel.setSubreddit(it)
+    if (showBookmarks) {
+        BookmarksSheet(
+            starred = starred,
+            onDismiss = { showBookmarks = false },
+            onOpenStarred = {
+                showBookmarks = false
+                viewModel.open(FeedTarget.Starred)
+            },
+            onOpenAll = {
+                showBookmarks = false
+                viewModel.open(FeedTarget.All)
+            },
+            onOpenSub = {
+                showBookmarks = false
+                viewModel.open(FeedTarget.Sub(it))
+            },
+            onUnstar = viewModel::unstar,
+            onGoTo = {
+                showBookmarks = false
+                viewModel.goToSubreddit(it)
             },
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BookmarksSheet(
+    starred: List<String>,
+    onDismiss: () -> Unit,
+    onOpenStarred: () -> Unit,
+    onOpenAll: () -> Unit,
+    onOpenSub: (String) -> Unit,
+    onUnstar: (String) -> Unit,
+    onGoTo: (String) -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var goTo by remember { mutableStateOf("") }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(bottom = 32.dp)) {
+            Text(
+                "Bookmarks",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+            if (starred.isNotEmpty()) {
+                Text(
+                    "Starred",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onOpenStarred)
+                        .padding(vertical = 12.dp),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Text(
+                "r/all",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenAll)
+                    .padding(vertical = 12.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+            starred.forEach { name ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "r/$name",
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable { onOpenSub(name) }
+                            .padding(vertical = 12.dp),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    IconButton(onClick = { onUnstar(name) }) {
+                        Icon(
+                            Icons.Filled.Star,
+                            contentDescription = "Unstar r/$name",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = goTo,
+                onValueChange = { goTo = it },
+                singleLine = true,
+                label = { Text("Go to subreddit") },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+            TextButton(
+                onClick = { if (goTo.isNotBlank()) onGoTo(goTo) },
+                modifier = Modifier.align(Alignment.End),
+            ) { Text("Go") }
+        }
     }
 }
 
@@ -175,30 +300,6 @@ private fun SortRow(current: FeedSort, onSelect: (FeedSort) -> Unit) {
             )
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SubredditDialog(
-    initial: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit,
-) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Go to subreddit") },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                singleLine = true,
-                label = { Text("subreddit (e.g. all, pics)") },
-            )
-        },
-        confirmButton = { TextButton(onClick = { onConfirm(text) }) { Text("Go") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
-    )
 }
 
 @Composable

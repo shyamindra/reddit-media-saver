@@ -6,7 +6,9 @@ import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
+import com.boostlite.reddit.data.BookmarkStore
 import com.boostlite.reddit.data.CookieStore
+import com.boostlite.reddit.data.FeedSession
 import com.boostlite.reddit.data.RedditClient
 import com.boostlite.reddit.data.RedditRepository
 import com.boostlite.reddit.download.MediaDownloader
@@ -20,6 +22,10 @@ class BoostLiteApp : Application(), ImageLoaderFactory {
 
     lateinit var cookieStore: CookieStore
         private set
+    lateinit var bookmarkStore: BookmarkStore
+        private set
+    lateinit var feedSession: FeedSession
+        private set
     lateinit var repository: RedditRepository
         private set
     lateinit var downloader: MediaDownloader
@@ -28,6 +34,8 @@ class BoostLiteApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         cookieStore = CookieStore(this)
+        bookmarkStore = BookmarkStore(this)
+        feedSession = FeedSession(bookmarkStore)
         repository = RedditRepository(RedditClient(cookieStore))
         downloader = MediaDownloader(this)
         instance = this
