@@ -39,6 +39,12 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     private val _restrictSub = MutableStateFlow<String?>(null)
     val restrictSub: StateFlow<String?> = _restrictSub.asStateFlow()
 
+    private val _originSub = MutableStateFlow<String?>(null)
+    val originSub: StateFlow<String?> = _originSub.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val _sort = MutableStateFlow(SearchSort.RELEVANCE)
     val sort: StateFlow<SearchSort> = _sort.asStateFlow()
 
@@ -68,9 +74,17 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    fun setRestrictSub(sub: String?) {
+    fun setOriginSub(sub: String?) {
+        _originSub.value = sub
         _restrictSub.value = sub
         if (sub != null) _suggestions.value = emptyList()
+    }
+
+    fun setRestrictToOrigin(restrict: Boolean) {
+        val origin = _originSub.value
+        _restrictSub.value = if (restrict) origin else null
+        if (_restrictSub.value != null) _suggestions.value = emptyList()
+        resubmitIfNeeded()
     }
 
     fun setQuery(q: String) {
@@ -115,6 +129,40 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
                 _state.value = UiState.Error(e.message ?: "Rate limited")
             } catch (e: Exception) {
                 _state.value = UiState.Error(e.message ?: "Search failed")
+            }
+        }
+    }
+
+    fun refresh() {
+        val q = _query.value.trim()
+        if (q.isEmpty() || _state.value !is UiState.Success) {
+            submit()
+            return
+        }
+        _isRefreshing.value = true
+        viewModelScope.launch {
+            try {
+                val posts = repo.search(
+                    q,
+                    subreddit = _restrictSub.value,
+                    sort = _sort.value.path,
+                    time = _time.value.path,
+                ).items
+                _state.value = UiState.Success(posts)
+            } catch (e: SessionExpiredException) {
+                if (_state.value !is UiState.Success) {
+                    _state.value = UiState.Error(e.message ?: "Session expired", needsCookies = true)
+                }
+            } catch (e: RateLimitedException) {
+                if (_state.value !is UiState.Success) {
+                    _state.value = UiState.Error(e.message ?: "Rate limited")
+                }
+            } catch (e: Exception) {
+                if (_state.value !is UiState.Success) {
+                    _state.value = UiState.Error(e.message ?: "Search failed")
+                }
+            } finally {
+                _isRefreshing.value = false
             }
         }
     }
