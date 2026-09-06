@@ -246,6 +246,7 @@ private fun FeedTitle(target: FeedTarget) {
         }
         is FeedTarget.All -> Text("r/all", fontWeight = FontWeight.SemiBold)
         is FeedTarget.Sub -> Text("r/${target.name}", fontWeight = FontWeight.SemiBold)
+        is FeedTarget.User -> Text("u/${target.name}", fontWeight = FontWeight.SemiBold)
     }
 }
 
