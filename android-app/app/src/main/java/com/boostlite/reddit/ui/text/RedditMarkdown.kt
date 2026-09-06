@@ -33,7 +33,7 @@ fun formatRedditText(input: String): FormattedRedditText {
     }
 
     addInline(Regex("""\*\*([^*]+)\*\*"""), MdStyle.BOLD, 2)
-    addInline(Regex("""(?<!\*)\*([^*]+)\*(?!\*)"""), MdStyle.ITALIC, 1)
+    addInline(Regex("""(?<!\*)\*(?![ \t])([^*\r\n]+)\*(?!\*)"""), MdStyle.ITALIC, 1)
     addInline(Regex("""_([^_]+)_"""), MdStyle.ITALIC, 1)
     addInline(Regex("""~~([^~]+)~~"""), MdStyle.STRIKE, 2)
     addInline(Regex("""`([^`]+)`"""), MdStyle.CODE, 1)
@@ -42,7 +42,6 @@ fun formatRedditText(input: String): FormattedRedditText {
     for (match in heading.findAll(source)) {
         val start = match.range.first
         val end = match.range.last + 1
-        if (overlapsLink(start, end)) continue
         val contentStart = match.groups[1]!!.range.first
         for (index in start until contentStart) removed[index] = true
         sourceSpans += MdSpan(contentStart, end, MdStyle.HEADING)
@@ -52,7 +51,6 @@ fun formatRedditText(input: String): FormattedRedditText {
     for (match in quote.findAll(source)) {
         val start = match.range.first
         val end = match.range.last + 1
-        if (overlapsLink(start, end)) continue
         val contentStart = match.groups[1]!!.range.first
         for (index in start until contentStart) removed[index] = true
         sourceSpans += MdSpan(contentStart, end, MdStyle.QUOTE)
@@ -62,9 +60,7 @@ fun formatRedditText(input: String): FormattedRedditText {
     for (match in list.findAll(source)) {
         val start = match.range.first
         val end = match.range.last + 1
-        if (!overlapsLink(start, end)) {
-            sourceSpans += MdSpan(start, end, MdStyle.LIST)
-        }
+        sourceSpans += MdSpan(start, end, MdStyle.LIST)
     }
 
     val offsets = IntArray(source.length + 1)

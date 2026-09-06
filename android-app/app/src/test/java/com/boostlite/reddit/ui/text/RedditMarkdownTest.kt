@@ -37,4 +37,29 @@ class RedditMarkdownTest {
         assertEquals(RedditInApp.User("spez"), redditInApp("https://www.reddit.com/user/spez"))
         assertEquals(null, redditInApp("https://example.com/x"))
     }
+
+    @Test
+    fun starList_isNotItalic() {
+        val f = formatRedditText("* first\n* second")
+        assertEquals("* first\n* second", f.text)
+        assertTrue(f.spans.any { it.style == MdStyle.LIST })
+        assertTrue(f.spans.none { it.style == MdStyle.ITALIC })
+    }
+
+    @Test
+    fun quote_withBareUrl_stillQuoted() {
+        val f = formatRedditText("> see https://example.com")
+        assertEquals("see https://example.com", f.text)
+        assertTrue(f.spans.any { it.style == MdStyle.QUOTE })
+        assertEquals("https://example.com", f.links.single().url)
+    }
+
+    @Test
+    fun headingAndList_withBareUrls_keepBlockStyles() {
+        val f = formatRedditText("# see https://example.com\n- visit https://example.org")
+        assertEquals("see https://example.com\n- visit https://example.org", f.text)
+        assertTrue(f.spans.any { it.style == MdStyle.HEADING })
+        assertTrue(f.spans.any { it.style == MdStyle.LIST })
+        assertEquals(listOf("https://example.com", "https://example.org"), f.links.map { it.url })
+    }
 }
