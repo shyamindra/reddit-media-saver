@@ -52,6 +52,8 @@ fun PostScreen(
     onBack: () -> Unit,
     onOpenMedia: (RedditPost, Boolean) -> Unit,
     onAuthorClick: (String) -> Unit,
+    onOpenSub: (String) -> Unit,
+    onOpenUser: (String) -> Unit,
     viewModel: PostViewModel = viewModel(),
 ) {
     LaunchedEffect(permalink) { viewModel.load(permalink) }
@@ -156,6 +158,8 @@ fun PostScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(12.dp),
+                                    onOpenSub = onOpenSub,
+                                    onOpenUser = onOpenUser,
                                 )
                             }
                             Row(
@@ -182,7 +186,12 @@ fun PostScreen(
                             }
                         } else {
                             items(comments, key = { it.id }) { comment ->
-                                CommentItem(comment, onAuthorClick = onAuthorClick)
+                                CommentItem(
+                                    comment = comment,
+                                    onAuthorClick = onAuthorClick,
+                                    onOpenSub = onOpenSub,
+                                    onOpenUser = onOpenUser,
+                                )
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                             }
                         }

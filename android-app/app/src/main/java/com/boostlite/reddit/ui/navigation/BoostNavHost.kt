@@ -64,6 +64,14 @@ fun BoostNavHost(navController: NavHostController = rememberNavController()) {
                         BoostLiteApp.instance.feedTarget.openUser(name)
                         navController.popBackStack()
                     },
+                    onOpenSub = { name ->
+                        app.feedTarget.openSub(name)
+                        navController.popBackStack()
+                    },
+                    onOpenUser = { name ->
+                        app.feedTarget.openUser(name)
+                        navController.popBackStack()
+                    },
                 )
             }
 

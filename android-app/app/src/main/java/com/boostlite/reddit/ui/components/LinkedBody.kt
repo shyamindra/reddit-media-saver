@@ -10,9 +10,16 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.text.withStyle
-import com.boostlite.reddit.ui.text.linkify
+import com.boostlite.reddit.ui.text.MdStyle
+import com.boostlite.reddit.ui.text.RedditInApp
+import com.boostlite.reddit.ui.text.formatRedditText
+import com.boostlite.reddit.ui.text.redditInApp
 
 @Suppress("DEPRECATION")
 @Composable
@@ -21,28 +28,35 @@ fun LinkedBody(
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.bodyMedium,
     color: Color = MaterialTheme.colorScheme.onSurface,
+    onOpenSub: ((String) -> Unit)? = null,
+    onOpenUser: ((String) -> Unit)? = null,
 ) {
     val uriHandler = LocalUriHandler.current
-    val linked = remember(text) { linkify(text) }
+    val formatted = remember(text) { formatRedditText(text) }
     val linkStyle = SpanStyle(
         color = MaterialTheme.colorScheme.primary,
         textDecoration = TextDecoration.Underline,
     )
     val bodyStyle = SpanStyle(color = color)
-    val annotated = remember(linked, linkStyle, bodyStyle) {
+    val quoteStyle = SpanStyle(color = MaterialTheme.colorScheme.onSurfaceVariant)
+    val annotated = remember(formatted, linkStyle, bodyStyle, quoteStyle) {
         buildAnnotatedString {
-            var cursor = 0
-            for (link in linked.links) {
-                if (link.start > cursor) {
-                    withStyle(bodyStyle) { append(linked.text.substring(cursor, link.start)) }
+            withStyle(bodyStyle) { append(formatted.text) }
+            for (span in formatted.spans) {
+                val spanStyle = when (span.style) {
+                    MdStyle.BOLD -> SpanStyle(fontWeight = FontWeight.Bold)
+                    MdStyle.ITALIC -> SpanStyle(fontStyle = FontStyle.Italic)
+                    MdStyle.STRIKE -> SpanStyle(textDecoration = TextDecoration.LineThrough)
+                    MdStyle.CODE -> SpanStyle(fontFamily = FontFamily.Monospace)
+                    MdStyle.HEADING -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 1.1.em)
+                    MdStyle.QUOTE -> quoteStyle
+                    MdStyle.LIST -> null
                 }
-                pushStringAnnotation("URL", link.url)
-                withStyle(linkStyle) { append(linked.text.substring(link.start, link.end)) }
-                pop()
-                cursor = link.end
+                if (spanStyle != null) addStyle(spanStyle, span.start, span.end)
             }
-            if (cursor < linked.text.length) {
-                withStyle(bodyStyle) { append(linked.text.substring(cursor)) }
+            for (link in formatted.links) {
+                addStyle(linkStyle, link.start, link.end)
+                addStringAnnotation("URL", link.url, link.start, link.end)
             }
         }
     }
@@ -52,7 +66,15 @@ fun LinkedBody(
         style = style.merge(TextStyle(color = color)),
         onClick = { offset ->
             annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { ann ->
-                runCatching { uriHandler.openUri(ann.item) }
+                runCatching {
+                    when (val target = redditInApp(ann.item)) {
+                        is RedditInApp.Sub ->
+                            onOpenSub?.invoke(target.name) ?: uriHandler.openUri(ann.item)
+                        is RedditInApp.User ->
+                            onOpenUser?.invoke(target.name) ?: uriHandler.openUri(ann.item)
+                        null -> uriHandler.openUri(ann.item)
+                    }
+                }
             }
         },
     )

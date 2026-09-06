@@ -35,6 +35,8 @@ private val DepthColors = listOf(
 fun CommentItem(
     comment: RedditComment,
     onAuthorClick: (String) -> Unit,
+    onOpenSub: (String) -> Unit,
+    onOpenUser: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val indent = (comment.depth.coerceAtMost(8) * 10).dp
@@ -84,6 +86,8 @@ fun CommentItem(
                 text = comment.body,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
+                onOpenSub = onOpenSub,
+                onOpenUser = onOpenUser,
             )
         }
     }

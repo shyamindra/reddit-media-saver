@@ -1,8 +1,15 @@
 package com.boostlite.reddit.ui.text
 
+import java.net.URI
+
 data class TextLink(val start: Int, val end: Int, val url: String)
 
 data class LinkedText(val text: String, val links: List<TextLink>)
+
+sealed class RedditInApp {
+    data class Sub(val name: String) : RedditInApp()
+    data class User(val name: String) : RedditInApp()
+}
 
 private val MARKDOWN_LINK = Regex("""\[([^\]\n]+)]\(([^)\s]+)\)""")
 private val BARE_URL = Regex("""https?://[^\s<>\[\]()]+""")
@@ -36,6 +43,18 @@ fun linkify(input: String): LinkedText {
     }
     if (cursor < input.length) out.append(input, cursor, input.length)
     return LinkedText(out.toString(), links)
+}
+
+fun redditInApp(url: String): RedditInApp? {
+    val uri = runCatching { URI(url) }.getOrNull() ?: return null
+    if (uri.host?.lowercase() !in setOf("reddit.com", "www.reddit.com")) return null
+    val parts = uri.path.orEmpty().split('/').filter { it.isNotEmpty() }
+    if (parts.size < 2) return null
+    return when (parts[0].lowercase()) {
+        "r" -> RedditInApp.Sub(parts[1])
+        "u", "user" -> RedditInApp.User(parts[1])
+        else -> null
+    }
 }
 
 private fun trimTrailingPunct(url: String): String = url.trimEnd { it in ".,;:!?" }
