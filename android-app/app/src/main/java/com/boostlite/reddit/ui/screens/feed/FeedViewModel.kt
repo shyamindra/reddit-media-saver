@@ -69,6 +69,9 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     fun openAll() = feedTarget.openAll()
     fun openSub(name: String) = feedTarget.openSub(name)
 
+    fun canGoBack(): Boolean = feedTarget.canGoBack()
+    fun goBack(): Boolean = feedTarget.goBack()
+
     fun goToSubreddit(raw: String) = feedTarget.openSub(raw)
 
     fun setSort(sort: FeedSort) {
@@ -115,7 +118,9 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
                 after = listing.after
                 _state.value = UiState.Success(loaded.toList())
             } catch (e: SessionExpiredException) {
-                _state.value = UiState.Error(e.message ?: "Session expired", needsCookies = true)
+                if (loaded.isEmpty()) {
+                    _state.value = UiState.Error(e.message ?: "Session expired", needsCookies = true)
+                }
             } catch (e: RateLimitedException) {
                 if (loaded.isEmpty()) {
                     _state.value = UiState.Error(e.message ?: "Rate limited")
