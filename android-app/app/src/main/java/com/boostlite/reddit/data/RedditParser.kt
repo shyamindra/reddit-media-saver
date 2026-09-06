@@ -59,7 +59,12 @@ object RedditParser {
         if (query.isEmpty()) return decoded
         val kept = query.split('&').filter { part ->
             val key = part.substringBefore('=').lowercase()
-            key !in setOf("width", "height", "crop", "format", "auto")
+            val value = part.substringAfter('=', "").lowercase()
+            when (key) {
+                "width", "height", "crop", "auto" -> false
+                "format" -> value == "mp4"
+                else -> true
+            }
         }
         return if (kept.isEmpty()) base else "$base?${kept.joinToString("&")}"
     }
@@ -67,7 +72,9 @@ object RedditParser {
     private fun rewriteDashHeight(fallback: String, height: Int): String {
         if (height <= 0) return fallback
         val snapped = DASH_HEIGHTS.firstOrNull { it <= height } ?: height
-        return fallback.replace(Regex("DASH_\\d+"), "DASH_$snapped")
+        return fallback
+            .replace(Regex("DASH_\\d+"), "DASH_$snapped")
+            .replace(Regex("CMAF_\\d+"), "CMAF_$snapped")
     }
 
     // ---- Listings (feeds + search) ----
@@ -183,6 +190,20 @@ object RedditParser {
     // ---- Media resolution ----
 
     private fun resolveMedia(data: JSONObject): PostMedia {
+        val own = resolveMediaDirect(data)
+        if (isPlayable(own)) return own
+        val parent = data.optJSONArray("crosspost_parent_list")?.optJSONObject(0) ?: return own
+        val fromParent = resolveMediaDirect(parent)
+        return if (isPlayable(fromParent)) fromParent else own
+    }
+
+    private fun isPlayable(media: PostMedia): Boolean = when (media.type) {
+        MediaType.VIDEO -> media.videoUrl != null
+        MediaType.GIF, MediaType.IMAGE, MediaType.GALLERY -> true
+        else -> false
+    }
+
+    private fun resolveMediaDirect(data: JSONObject): PostMedia {
         // 1. Gallery
         if (data.optBoolean("is_gallery")) {
             val urls = parseGallery(data)
@@ -207,8 +228,12 @@ object RedditParser {
             ?.let { decode(it) }
         val hint = data.optString("post_hint")
 
-        // 3. Direct image (gifs are handled below so we can prefer mp4/DASH)
-        if (url != null && (hint == "image" || hasImageExt(url)) && !isGifPath(url)) {
+        // 3. Direct image (gifs and gif hosts are handled below)
+        if (url != null &&
+            !isGifHost(url, data) &&
+            !isGifPath(url) &&
+            (hint == "image" || hasImageExt(url))
+        ) {
             val best = bestRedditImageUrl(url)
             return PostMedia(MediaType.IMAGE, previewUrl = best, downloadUrl = best)
         }
@@ -235,6 +260,16 @@ object RedditParser {
         }
 
         embedVideo(data, url, hint)?.let { return it }
+
+        bareVreddit(url)?.let { id ->
+            return PostMedia(
+                type = MediaType.VIDEO,
+                previewUrl = previewImage(data),
+                videoUrl = "https://v.redd.it/$id/DASHPlaylist.mpd",
+                downloadUrl = "https://v.redd.it/$id/DASHPlaylist.mpd",
+                hasAudio = true,
+            )
+        }
 
         // 5. GIF bytes when there is no playable transcode
         if (url != null && pathWithoutQuery(url).lowercase().endsWith(".gif")) {
@@ -267,24 +302,39 @@ object RedditParser {
         val hls = video.optStringOrNull("hls_url")?.let { decode(it) }
         val fallback = video.optStringOrNull("fallback_url")?.let { decode(it) }
         val height = video.optInt("height")
-        val download = fallback?.let { rewriteDashHeight(it, height) }
+        val cmaf = fallback != null && Regex("CMAF_\\d+", RegexOption.IGNORE_CASE).containsMatchIn(fallback)
+        val download = if (cmaf) fallback else fallback?.let { rewriteDashHeight(it, height) }
         val stream = when {
-            height > 0 && download != null -> download
+            cmaf -> fallback
             dash != null -> dash
             hls != null -> hls
-            else -> download
+            else -> fallback ?: download
         }
+        val gif = isGif || video.optBoolean("is_gif")
         return PostMedia(
             type = MediaType.VIDEO,
             previewUrl = previewImage(data),
             videoUrl = stream,
             downloadUrl = download ?: stream,
-            isGif = isGif || video.optBoolean("is_gif"),
+            isGif = gif,
+            hasAudio = video.optBoolean("has_audio"),
         )
     }
 
     private fun embedVideo(data: JSONObject, url: String?, hint: String): PostMedia? {
         val gifHost = isGifHost(url, data)
+        val poster = oembedThumbnail(data)
+        val redgifsMp4 = poster?.let { redgifsMp4FromPoster(it) }
+        if (redgifsMp4 != null) {
+            return PostMedia(
+                type = MediaType.VIDEO,
+                previewUrl = poster,
+                videoUrl = redgifsMp4,
+                downloadUrl = redgifsMp4,
+                isGif = true,
+                hasAudio = true,
+            )
+        }
         val previewVid = data.optJSONObject("preview")?.optJSONObject("reddit_video_preview")
         if (previewVid != null && (gifHost || hint == "rich:video" || hint == "hosted:video" || previewVid.optBoolean("is_gif"))) {
             return videoMedia(previewVid, data, isGif = true)
@@ -300,6 +350,24 @@ object RedditParser {
             )
         }
         return null
+    }
+
+    private fun oembedThumbnail(data: JSONObject): String? {
+        val oembed = data.optJSONObject("media")?.optJSONObject("oembed")
+            ?: data.optJSONObject("secure_media")?.optJSONObject("oembed")
+        return oembed?.optStringOrNull("thumbnail_url")?.let { decode(it) }
+    }
+
+    /**
+     * Watch URLs are lowercase and cannot be turned into a media.redgifs.com
+     * filename. The oembed poster keeps PascalCase: Name-poster.jpg → Name.mp4.
+     */
+    private fun redgifsMp4FromPoster(thumb: String): String? {
+        val match = Regex(
+            """https://[^/?#]*redgifs\.com/([^/?#]+)-poster\.""",
+            RegexOption.IGNORE_CASE,
+        ).find(thumb) ?: return null
+        return "https://media.redgifs.com/${match.groupValues[1]}.mp4"
     }
 
     private fun variantMp4(data: JSONObject): String? {
@@ -330,7 +398,13 @@ object RedditParser {
     private fun isGifHost(url: String?, data: JSONObject): Boolean {
         val domain = data.optString("domain").lowercase()
         val u = (url ?: "").lowercase()
-        val hosts = listOf("redgifs.com", "gfycat.com", "gifdeliverynetwork.com", "giphy.com")
+        val hosts = listOf(
+            "redgifs.com",
+            "gfycat.com",
+            "gifdeliverynetwork.com",
+            "giphy.com",
+            "redgif.com",
+        )
         if (hosts.any { domain.contains(it) || u.contains(it) }) return true
         return u.contains(".gif")
     }
@@ -346,6 +420,16 @@ object RedditParser {
         val host = hostOf(pathWithoutQuery(url)).lowercase()
         if ("imgur.com" !in host && "giphy.com" !in host) return null
         return pathWithoutQuery(url).dropLast(4) + ".mp4"
+    }
+
+    private fun bareVreddit(url: String?): String? {
+        if (url == null) return null
+        val path = pathWithoutQuery(url).trimEnd('/')
+        val host = hostOf(path).lowercase()
+        if (host != "v.redd.it") return null
+        val id = path.substringAfterLast('/')
+        if (id.isBlank() || '.' in id) return null
+        return id
     }
 
     private fun parseGallery(data: JSONObject): List<String> {

@@ -125,7 +125,7 @@ class RedditParserMediaTest {
             """.trimIndent(),
         ).media
         assertEquals(MediaType.VIDEO, media.type)
-        assertEquals("https://v.redd.it/vid/DASH_1080.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASHPlaylist.mpd?a=1", media.videoUrl)
         assertEquals("https://i.redd.it/poster.jpg", media.previewUrl)
         assertEquals("https://v.redd.it/vid/DASH_1080.mp4?source=fallback", media.downloadUrl)
     }
@@ -144,7 +144,8 @@ class RedditParserMediaTest {
             }
             """.trimIndent(),
         ).media
-        assertEquals("https://v.redd.it/vid/DASH_1080.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASH_240.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASH_1080.mp4?source=fallback", media.downloadUrl)
     }
 
     @Test
@@ -161,7 +162,7 @@ class RedditParserMediaTest {
             }
             """.trimIndent(),
         ).media
-        assertEquals("https://v.redd.it/vid/DASH_720.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASH_360.mp4?source=fallback", media.videoUrl)
         assertEquals("https://v.redd.it/vid/DASH_720.mp4?source=fallback", media.downloadUrl)
     }
 
@@ -179,7 +180,8 @@ class RedditParserMediaTest {
             }
             """.trimIndent(),
         ).media
-        assertEquals("https://v.redd.it/vid/DASH_720.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASH_360.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASH_720.mp4?source=fallback", media.downloadUrl)
     }
 
     @Test
@@ -254,7 +256,7 @@ class RedditParserMediaTest {
         ).media
         assertEquals(MediaType.VIDEO, media.type)
         assertTrue(media.isGif)
-        assertEquals("https://v.redd.it/gifvid/DASH_720.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/gifvid/DASHPlaylist.mpd?a=1", media.videoUrl)
         assertEquals("https://v.redd.it/gifvid/DASH_720.mp4?source=fallback", media.downloadUrl)
     }
 
@@ -279,7 +281,7 @@ class RedditParserMediaTest {
         ).media
         assertEquals(MediaType.VIDEO, media.type)
         assertTrue(media.isGif)
-        assertEquals("https://v.redd.it/anim/DASH_720.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/anim/DASHPlaylist.mpd?a=1", media.videoUrl)
     }
 
     @Test
@@ -312,5 +314,227 @@ class RedditParserMediaTest {
         assertEquals(MediaType.VIDEO, media.type)
         assertTrue(media.isGif)
         assertEquals("https://i.imgur.com/abc.mp4", media.videoUrl)
+    }
+
+    @Test
+    fun crosspost_usesParentRedditVideoPreview() {
+        val media = post(
+            """
+            {
+              "id":"xp","name":"t3_xp","title":"X","author":"a","subreddit":"topsub",
+              "permalink":"/r/topsub/comments/xp/x/","post_hint":"link","domain":"redgifs.com",
+              "url":"https://www.redgifs.com/watch/exampleclip",
+              "crosspost_parent_list":[{
+                "id":"orig","name":"t3_orig","title":"O","author":"b","subreddit":"origsub",
+                "permalink":"/r/origsub/comments/orig/x/","post_hint":"rich:video","domain":"redgifs.com",
+                "url":"https://www.redgifs.com/watch/exampleclip",
+                "preview":{
+                  "images":[{"source":{"url":"https://preview.redd.it/poster.jpg","width":640,"height":360}}],
+                  "reddit_video_preview":{
+                    "is_gif":true,"height":720,
+                    "fallback_url":"https://v.redd.it/gifvid/DASH_240.mp4?source=fallback"
+                  }
+                }
+              }]
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertTrue(media.isGif)
+        assertEquals("https://v.redd.it/gifvid/DASH_240.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/gifvid/DASH_720.mp4?source=fallback", media.downloadUrl)
+    }
+
+    @Test
+    fun redgifs_imageHintWithoutPreview_isNotTypedAsImage() {
+        val media = post(
+            """
+            {
+              "id":"ih","name":"t3_ih","title":"G","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/ih/x/","post_hint":"image","domain":"redgifs.com",
+              "url":"https://www.redgifs.com/watch/exampleclip"
+            }
+            """.trimIndent(),
+        ).media
+        assertTrue(media.type != MediaType.IMAGE)
+        assertTrue(media.isGif || media.type == MediaType.LINK)
+    }
+
+    @Test
+    fun redgifs_withoutRedditPreview_usesOembedPosterMp4() {
+        val media = post(
+            """
+            {
+              "id":"rg2","name":"t3_rg2","title":"G","author":"a","subreddit":"watchitforthekahaani",
+              "permalink":"/r/watchitforthekahaani/comments/rg2/x/",
+              "post_hint":"rich:video","domain":"redgifs.com",
+              "url":"https://www.redgifs.com/watch/fuchsiacelebratedassassinbug",
+              "preview":{"images":[{"source":{
+                "url":"https://external-preview.redd.it/xyz.jpg?auto=webp","width":640,"height":360
+              }}]},
+              "media":{"type":"redgifs.com","oembed":{
+                "provider_name":"RedGIFs",
+                "thumbnail_url":"https://media.redgifs.com/FuchsiaCelebratedAssassinbug-poster.jpg"
+              }},
+              "secure_media":{"type":"redgifs.com","oembed":{
+                "provider_name":"RedGIFs",
+                "thumbnail_url":"https://media.redgifs.com/FuchsiaCelebratedAssassinbug-poster.jpg"
+              }}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertTrue(media.isGif)
+        assertEquals("https://media.redgifs.com/FuchsiaCelebratedAssassinbug.mp4", media.videoUrl)
+        assertEquals("https://media.redgifs.com/FuchsiaCelebratedAssassinbug.mp4", media.downloadUrl)
+        assertEquals("https://media.redgifs.com/FuchsiaCelebratedAssassinbug-poster.jpg", media.previewUrl)
+    }
+
+    @Test
+    fun redgifs_thumbsPoster_rewritesToMediaMp4() {
+        val media = post(
+            """
+            {
+              "id":"rg3","name":"t3_rg3","title":"G","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/rg3/x/","post_hint":"rich:video","domain":"redgifs.com",
+              "url":"https://www.redgifs.com/watch/crowdedmoraljenny",
+              "media":{"oembed":{
+                "thumbnail_url":"https://thumbs4.redgifs.com/CrowdedMoralJenny-poster.jpg"
+              }}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertTrue(media.isGif)
+        assertEquals("https://media.redgifs.com/CrowdedMoralJenny.mp4", media.videoUrl)
+    }
+
+    @Test
+    fun redditVideoPreview_cmafFallback_isPreferredOverDashPlaylist() {
+        val media = post(
+            """
+            {
+              "id":"cm","name":"t3_cm","title":"G","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/cm/x/","post_hint":"rich:video","domain":"redgifs.com",
+              "url":"https://www.redgifs.com/watch/exampleclip",
+              "preview":{
+                "images":[{"source":{"url":"https://preview.redd.it/poster.jpg","width":640,"height":360}}],
+                "reddit_video_preview":{
+                  "is_gif":true,"height":1080,
+                  "fallback_url":"https://v.redd.it/abc123/CMAF_1080.mp4?source=fallback",
+                  "dash_url":"https://v.redd.it/abc123/DASHPlaylist.mpd?a=1"
+                }
+              }
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertTrue(media.isGif)
+        assertEquals("https://v.redd.it/abc123/CMAF_1080.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/abc123/CMAF_1080.mp4?source=fallback", media.downloadUrl)
+    }
+
+    @Test
+    fun hostedGif_variantMp4_keepsFormatQuery() {
+        val media = post(
+            """
+            {
+              "id":"hg2","name":"t3_hg2","title":"G","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/hg2/x/","post_hint":"image","domain":"i.redd.it",
+              "url":"https://i.redd.it/fubfbnyl5tmc1.gif",
+              "preview":{"images":[{
+                "source":{"url":"https://preview.redd.it/fubfbnyl5tmc1.jpg?width=108","width":108,"height":60},
+                "variants":{"mp4":{"source":{
+                  "url":"https://preview.redd.it/fubfbnyl5tmc1.gif?format=mp4&amp;s=abc",
+                  "width":480,"height":270
+                }}}
+              }]}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertTrue(media.isGif)
+        assertEquals("https://preview.redd.it/fubfbnyl5tmc1.gif?format=mp4&s=abc", media.videoUrl)
+    }
+
+    @Test
+    fun postWithComments_usesSameMaxDashAsFeed() {
+        val json = """
+            [
+              {"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"v1","name":"t3_v1","title":"V","author":"a","subreddit":"pics",
+                "permalink":"/r/pics/comments/v1/x/",
+                "media":{"reddit_video":{
+                  "height":1080,
+                  "fallback_url":"https://v.redd.it/vid/DASH_240.mp4?source=fallback",
+                  "dash_url":"https://v.redd.it/vid/DASHPlaylist.mpd?a=1"
+                }}
+              }}]}},
+              {"kind":"Listing","data":{"children":[]}}
+            ]
+        """.trimIndent()
+        val media = RedditParser.parsePostWithComments(json).post.media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertEquals("https://v.redd.it/vid/DASHPlaylist.mpd?a=1", media.videoUrl)
+        assertEquals("https://v.redd.it/vid/DASH_1080.mp4?source=fallback", media.downloadUrl)
+    }
+
+    @Test
+    fun cmaf_keepsDeclaredHeightEvenWhenPostIsTaller() {
+        val media = post(
+            """
+            {
+              "id":"c2","name":"t3_c2","title":"V","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/c2/x/",
+              "media":{"reddit_video":{
+                "is_gif":false,"has_audio":true,"height":1280,
+                "fallback_url":"https://v.redd.it/abc/CMAF_720.mp4?source=fallback",
+                "dash_url":"https://v.redd.it/abc/DASHPlaylist.mpd?a=1"
+              }}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals("https://v.redd.it/abc/CMAF_720.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/abc/CMAF_720.mp4?source=fallback", media.downloadUrl)
+        assertTrue(media.hasAudio)
+        assertTrue(!media.isGif)
+    }
+
+    @Test
+    fun redgifs_prefersOembedMp4OverRedditVideoPreview() {
+        val media = post(
+            """
+            {
+              "id":"rg4","name":"t3_rg4","title":"G","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/rg4/x/","post_hint":"rich:video","domain":"redgifs.com",
+              "url":"https://www.redgifs.com/watch/mildlopsidedkoalabear",
+              "preview":{"reddit_video_preview":{
+                "is_gif":true,"has_audio":false,"height":480,
+                "fallback_url":"https://v.redd.it/x/CMAF_480.mp4"
+              }},
+              "media":{"oembed":{"thumbnail_url":"https://media.redgifs.com/MildLopsidedKoalabear-poster.jpg"}}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals("https://media.redgifs.com/MildLopsidedKoalabear.mp4", media.videoUrl)
+        assertTrue(media.isGif)
+        assertTrue(media.hasAudio)
+    }
+
+    @Test
+    fun bareVreddit_withoutRedditVideo_usesDashPlaylist() {
+        val media = post(
+            """
+            {
+              "id":"bv","name":"t3_bv","title":"V","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/bv/x/","post_hint":"link","domain":"v.redd.it",
+              "url":"https://v.redd.it/29oabq5r9cch1",
+              "preview":{"images":[{"source":{"url":"https://external-preview.redd.it/x.jpg","width":640,"height":360}}]}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals(MediaType.VIDEO, media.type)
+        assertEquals("https://v.redd.it/29oabq5r9cch1/DASHPlaylist.mpd", media.videoUrl)
+        assertTrue(media.hasAudio)
     }
 }

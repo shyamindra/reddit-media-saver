@@ -14,9 +14,16 @@ data class PostMedia(
     val galleryUrls: List<String> = emptyList(),
     /** The best single URL to hand to the downloader. */
     val downloadUrl: String? = null,
-    /** Looping silent clip (RedGIFs, gifv, reddit gif video). */
+    /** Looping clip (RedGIFs, gifv, reddit is_gif). Mute is a UI policy, not this flag. */
     val isGif: Boolean = false,
-)
+    /** True when the stream is expected to have a soundtrack (fullscreen unmutes). */
+    val hasAudio: Boolean = false,
+) {
+    val hasViewerMedia: Boolean
+        get() = !previewUrl.isNullOrBlank() ||
+            !videoUrl.isNullOrBlank() ||
+            galleryUrls.isNotEmpty()
+}
 
 data class RedditPost(
     val id: String,
