@@ -42,7 +42,7 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
 
     fun home(): FeedTarget = if (joined() != null) FeedTarget.Starred else FeedTarget.All
 
-    fun canGoBack(): Boolean = stack.isNotEmpty() || _target.value is FeedTarget.Sub
+    fun canGoBack(): Boolean = stack.isNotEmpty() || _target.value != home()
 
     fun goBack(): Boolean {
         if (stack.isNotEmpty()) {

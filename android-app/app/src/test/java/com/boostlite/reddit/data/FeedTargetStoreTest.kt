@@ -149,11 +149,14 @@ class FeedTargetStoreTest {
     }
 
     @Test
-    fun openAll_clearsStack() {
+    fun openAll_clearsStack_thenBackGoesHome() {
         val ft = store("pics")
         ft.openSub("cats")
         ft.openAll()
         assertEquals(FeedTarget.All, ft.target.value)
+        assertTrue(ft.canGoBack())
+        assertTrue(ft.goBack())
+        assertEquals(FeedTarget.Starred, ft.target.value)
         assertFalse(ft.canGoBack())
     }
 
