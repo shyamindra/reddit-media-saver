@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
+import com.boostlite.reddit.ui.components.AudioToggleButton
 import com.boostlite.reddit.ui.components.PostImage
 import com.boostlite.reddit.ui.components.VideoPlayer
 
@@ -54,6 +55,7 @@ fun MediaViewer(
     var playVideo by remember(post.id) {
         mutableStateOf(post.media.videoUrl != null)
     }
+    var muted by remember(post.id) { mutableStateOf(false) }
     BackHandler(onBack = onDismiss)
     LaunchedEffect(playVideo) {
         if (playVideo) chrome = true
@@ -72,8 +74,20 @@ fun MediaViewer(
         FullscreenBody(
             post = post,
             playVideo = playVideo,
+            muted = muted,
             onPlayVideo = { playVideo = true },
         )
+
+        if (playVideo && post.media.hasAudio && post.media.videoUrl != null) {
+            AudioToggleButton(
+                muted = muted,
+                onClick = { muted = !muted },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(bottom = 16.dp, end = 8.dp),
+            )
+        }
 
         if (chrome) {
             ViewerChrome(
@@ -91,6 +105,7 @@ fun MediaViewer(
 private fun FullscreenBody(
     post: RedditPost,
     playVideo: Boolean,
+    muted: Boolean,
     onPlayVideo: () -> Unit,
 ) {
     val media = post.media
@@ -102,8 +117,8 @@ private fun FullscreenBody(
                     url = stream,
                     modifier = Modifier.fillMaxSize(),
                     autoPlay = true,
-                    muted = false,
-                    showController = media.hasAudio,
+                    muted = muted,
+                    showController = false,
                     posterUrl = media.previewUrl,
                 )
             } else {

@@ -33,7 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -74,7 +74,7 @@ fun SearchScreen(
     val context = LocalContext.current
     val starredNames by viewModel.starredNames.collectAsStateWithLifecycle()
     val listKey = "${query}|${restrictSub}|${sort.path}|${time.path}"
-    val listState = remember(listKey) { LazyListState() }
+    val listState = rememberSaveable(listKey, saver = LazyListState.Saver) { LazyListState() }
 
     Scaffold { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {

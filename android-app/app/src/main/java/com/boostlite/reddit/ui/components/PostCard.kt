@@ -21,6 +21,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -98,6 +102,8 @@ fun PostCard(
 
         val preview = post.media.previewUrl
         val stream = post.media.videoUrl
+        val showAudio = post.media.hasAudio && stream != null
+        var muted by remember(post.id) { mutableStateOf(true) }
         if (preview != null || stream != null) {
             Spacer(Modifier.size(8.dp))
             Box(
@@ -130,9 +136,16 @@ fun PostCard(
                                 .heightIn(min = 180.dp, max = 480.dp)
                         },
                         autoPlay = true,
-                        muted = true,
+                        muted = muted,
                         showController = false,
                         posterUrl = preview,
+                    )
+                }
+                if (showAudio && autoPlay) {
+                    AudioToggleButton(
+                        muted = muted,
+                        onClick = { muted = !muted },
+                        modifier = Modifier.align(Alignment.BottomEnd),
                     )
                 }
                 if (post.media.type == MediaType.GALLERY) {

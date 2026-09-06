@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -44,7 +45,7 @@ fun VideoPlayer(
     val lifecycleOwner = LocalLifecycleOwner.current
     var showPoster by remember(url, posterUrl) { mutableStateOf(!posterUrl.isNullOrBlank()) }
 
-    val player = remember(url, muted, autoPlay) {
+    val player = remember(url, autoPlay) {
         val tracks = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
@@ -60,6 +61,9 @@ fun VideoPlayer(
             volume = if (muted) 0f else 1f
             repeatMode = Player.REPEAT_MODE_ONE
         }
+    }
+    LaunchedEffect(player, muted) {
+        player.volume = if (muted) 0f else 1f
     }
 
     DisposableEffect(player, posterUrl) {
