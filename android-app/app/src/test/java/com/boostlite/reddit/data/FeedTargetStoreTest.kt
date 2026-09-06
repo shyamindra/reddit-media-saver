@@ -114,4 +114,55 @@ class FeedTargetStoreTest {
         assertEquals(listOf("pics"), second.starredNames.value)
         assertEquals(FeedTarget.Starred, second.target.value)
     }
+
+    @Test
+    fun persist_restoresLastSub() {
+        val persist = MemoryStarredSubsPersist(listOf("pics"))
+        val first = FeedTargetStore(persist)
+        first.openSub("cats")
+        val second = FeedTargetStore(persist)
+        assertEquals(FeedTarget.Sub("cats"), second.target.value)
+    }
+
+    @Test
+    fun goBack_fromSub_returnsHome() {
+        val ft = store("pics")
+        assertEquals(FeedTarget.Starred, ft.target.value)
+        ft.openSub("cats")
+        assertEquals(FeedTarget.Sub("cats"), ft.target.value)
+        assertTrue(ft.canGoBack())
+        assertTrue(ft.goBack())
+        assertEquals(FeedTarget.Starred, ft.target.value)
+        assertFalse(ft.canGoBack())
+        assertFalse(ft.goBack())
+    }
+
+    @Test
+    fun goBack_popsThroughSubsThenHome() {
+        val ft = store("pics")
+        ft.openSub("a")
+        ft.openSub("b")
+        assertTrue(ft.goBack())
+        assertEquals(FeedTarget.Sub("a"), ft.target.value)
+        assertTrue(ft.goBack())
+        assertEquals(FeedTarget.Starred, ft.target.value)
+    }
+
+    @Test
+    fun openAll_clearsStack() {
+        val ft = store("pics")
+        ft.openSub("cats")
+        ft.openAll()
+        assertEquals(FeedTarget.All, ft.target.value)
+        assertFalse(ft.canGoBack())
+    }
+
+    @Test
+    fun goBack_subWithNoStarred_goesToAll() {
+        val ft = store()
+        ft.openSub("cats")
+        assertTrue(ft.goBack())
+        assertEquals(FeedTarget.All, ft.target.value)
+        assertFalse(ft.canGoBack())
+    }
 }

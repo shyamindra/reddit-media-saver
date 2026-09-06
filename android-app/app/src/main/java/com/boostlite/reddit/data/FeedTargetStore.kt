@@ -9,13 +9,20 @@ import kotlinx.coroutines.flow.asStateFlow
 interface StarredSubsPersist {
     fun load(): List<String>
     fun save(names: List<String>)
+    fun loadLastTarget(): String? = null
+    fun saveLastTarget(encoded: String) {}
 }
 
 class MemoryStarredSubsPersist(initial: List<String> = emptyList()) : StarredSubsPersist {
     private var stored = initial.toList()
+    private var lastTarget: String? = null
     override fun load(): List<String> = stored
     override fun save(names: List<String>) {
         stored = names.toList()
+    }
+    override fun loadLastTarget(): String? = lastTarget
+    override fun saveLastTarget(encoded: String) {
+        lastTarget = encoded
     }
 }
 
@@ -30,6 +37,26 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
 
     private val _target = MutableStateFlow(initialTarget())
     val target: StateFlow<FeedTarget> = _target.asStateFlow()
+
+    private val stack = ArrayDeque<FeedTarget>()
+
+    fun home(): FeedTarget = if (joined() != null) FeedTarget.Starred else FeedTarget.All
+
+    fun canGoBack(): Boolean = stack.isNotEmpty() || _target.value is FeedTarget.Sub
+
+    fun goBack(): Boolean {
+        if (stack.isNotEmpty()) {
+            _target.value = stack.removeLast()
+            persistTarget()
+            return true
+        }
+        if (_target.value != home()) {
+            _target.value = home()
+            persistTarget()
+            return true
+        }
+        return false
+    }
 
     fun listingSubreddit(): String = when (val t = _target.value) {
         is FeedTarget.Starred -> joined() ?: "all"
@@ -63,11 +90,11 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
     }
 
     fun openStarred() {
-        _target.value = if (joined() != null) FeedTarget.Starred else FeedTarget.All
+        jumpHome(if (joined() != null) FeedTarget.Starred else FeedTarget.All)
     }
 
     fun openAll() {
-        _target.value = FeedTarget.All
+        jumpHome(FeedTarget.All)
     }
 
     fun openSub(raw: String) {
@@ -78,16 +105,59 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
             return
         }
         val name = normalize(trimmed) ?: return
-        _target.value = FeedTarget.Sub(name)
+        pushAndSet(FeedTarget.Sub(name))
     }
 
-    private fun initialTarget(): FeedTarget =
+    private fun initialTarget(): FeedTarget {
+        val saved = decodeTarget(persist.loadLastTarget())
+        return saved ?: defaultTarget()
+    }
+
+    private fun defaultTarget(): FeedTarget =
         if (joined() != null) FeedTarget.Starred else FeedTarget.All
 
     private fun demoteIfEmptyStarred() {
         if (_target.value is FeedTarget.Starred && joined() == null) {
             _target.value = FeedTarget.All
+            persistTarget()
         }
+    }
+
+    private fun persistTarget() {
+        persist.saveLastTarget(encodeTarget(_target.value))
+    }
+
+    private fun pushAndSet(next: FeedTarget) {
+        val cur = _target.value
+        if (cur == next) return
+        stack.addLast(cur)
+        _target.value = next
+        persistTarget()
+    }
+
+    private fun jumpHome(next: FeedTarget) {
+        stack.clear()
+        _target.value = next
+        persistTarget()
+    }
+
+    private fun decodeTarget(encoded: String?): FeedTarget? {
+        if (encoded.isNullOrBlank()) return null
+        return when {
+            encoded == "starred" -> if (joined() != null) FeedTarget.Starred else FeedTarget.All
+            encoded == "all" -> FeedTarget.All
+            encoded.startsWith("sub:") -> {
+                val name = encoded.removePrefix("sub:")
+                normalize(name)?.let { FeedTarget.Sub(it) }
+            }
+            else -> null
+        }
+    }
+
+    private fun encodeTarget(target: FeedTarget): String = when (target) {
+        is FeedTarget.Starred -> "starred"
+        is FeedTarget.All -> "all"
+        is FeedTarget.Sub -> "sub:${target.name}"
     }
 
     private fun joined(): String? = joinedForFeed(_starredNames.value)
