@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.boostlite.reddit.data.model.PostMedia
 import com.boostlite.reddit.data.model.RedditComment
+import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.ui.compactCount
 import com.boostlite.reddit.ui.relativeTime
 
@@ -34,7 +36,8 @@ private val DepthColors = listOf(
 @Composable
 fun CommentItem(
     comment: RedditComment,
-    onAuthorClick: (String) -> Unit,
+    onAuthorClick: (String) -> Unit = {},
+    onOpenMedia: (PostMedia) -> Unit = {},
     onOpenSub: (String) -> Unit,
     onOpenUser: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -89,6 +92,34 @@ fun CommentItem(
                 onOpenSub = onOpenSub,
                 onOpenUser = onOpenUser,
             )
+            comment.media?.let { media ->
+                Spacer(Modifier.size(8.dp))
+                val mediaPost = commentMediaPost(comment, media)
+                MediaContent(
+                    post = mediaPost,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenMedia(media) },
+                    onPlay = { onOpenMedia(media) },
+                )
+            }
         }
     }
 }
+
+private fun commentMediaPost(comment: RedditComment, media: PostMedia) = RedditPost(
+    id = comment.id,
+    fullname = "t1_${comment.id}",
+    title = comment.body.take(80).ifBlank { "Comment" },
+    author = comment.author,
+    subreddit = "",
+    permalink = "",
+    linkUrl = null,
+    score = comment.score,
+    numComments = 0,
+    createdUtc = comment.createdUtc,
+    over18 = false,
+    domain = null,
+    selftext = comment.body,
+    media = media,
+)

@@ -145,15 +145,24 @@ object RedditParser {
             if (node.optString("kind") != "t1") continue // skip "more" stubs
             val data = node.optJSONObject("data") ?: continue
             val body = HtmlEntities.decode(data.optString("body")).trim()
-            if (body.isNotEmpty()) {
+            val imgIds = Regex("""!\[img]\(([^)]+)\)""")
+                .findAll(body)
+                .map { it.groupValues[1] }
+                .toList()
+            val media = commentMedia(data, body, imgIds)
+            val stripped = imgIds
+                .fold(body) { acc, id -> acc.replace("![img]($id)", "") }
+                .trim()
+            if (stripped.isNotEmpty() || media != null) {
                 out.add(
                     RedditComment(
                         id = data.optString("id"),
                         author = data.optString("author", "[deleted]"),
-                        body = body,
+                        body = stripped,
                         score = data.optInt("score"),
                         depth = depth,
                         createdUtc = data.optLong("created_utc"),
+                        media = media,
                     ),
                 )
             }
@@ -163,6 +172,79 @@ object RedditParser {
                 if (replyChildren != null) flattenComments(replyChildren, depth + 1, out)
             }
         }
+    }
+
+    private fun commentMedia(data: JSONObject, body: String, imgIds: List<String>): PostMedia? {
+        val metadata = data.optJSONObject("media_metadata")
+        if (metadata != null) {
+            val ids = if (imgIds.isNotEmpty()) {
+                imgIds
+            } else {
+                buildList {
+                    val keys = metadata.keys()
+                    while (keys.hasNext()) add(keys.next())
+                }
+            }
+            val items = ids.mapNotNull { id ->
+                val entry = metadata.optJSONObject(id) ?: return@mapNotNull null
+                val url = galleryItemUrl(id, entry) ?: return@mapNotNull null
+                url to entry
+            }
+            if (items.size > 1) {
+                val urls = items.map { it.first }
+                return PostMedia(
+                    type = MediaType.GALLERY,
+                    previewUrl = urls.first(),
+                    galleryUrls = urls,
+                    downloadUrl = urls.first(),
+                )
+            }
+            items.singleOrNull()?.let { (url, entry) ->
+                return commentMetadataMedia(url, entry)
+            }
+        }
+
+        val urls = Regex("""https://[^\s)]+""")
+            .findAll(body)
+            .map { it.value.trimEnd('.', ',', ';', ':', '!', '?') }
+            .filter(::isCommentImageUrl)
+            .toList()
+        if (urls.size != 1) return null
+        val direct = JSONObject().put("url", urls.single())
+        if (!isGifPath(urls.single())) direct.put("post_hint", "image")
+        return resolveMediaDirect(direct).takeIf {
+            it.type == MediaType.IMAGE || it.type == MediaType.GIF || it.type == MediaType.VIDEO
+        }
+    }
+
+    private fun commentMetadataMedia(url: String, entry: JSONObject): PostMedia {
+        val source = entry.optJSONObject("s")
+        if (source?.optStringOrNull("mp4") != null) {
+            return PostMedia(
+                type = MediaType.VIDEO,
+                previewUrl = source.optStringOrNull("u")?.let(::bestRedditImageUrl),
+                videoUrl = url,
+                downloadUrl = url,
+                isGif = true,
+            )
+        }
+        if (source?.optStringOrNull("gif") != null || isGifPath(url)) {
+            return PostMedia(
+                type = MediaType.GIF,
+                previewUrl = url,
+                downloadUrl = url,
+                isGif = true,
+            )
+        }
+        return PostMedia(MediaType.IMAGE, previewUrl = url, downloadUrl = url)
+    }
+
+    private fun isCommentImageUrl(url: String): Boolean {
+        val host = hostOf(pathWithoutQuery(url)).lowercase()
+        return host == "i.redd.it" ||
+            host == "i.imgur.com" ||
+            hasImageExt(url) ||
+            isGifPath(url)
     }
 
     // ---- Post ----

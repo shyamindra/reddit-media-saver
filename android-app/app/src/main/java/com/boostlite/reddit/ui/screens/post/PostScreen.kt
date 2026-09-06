@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
 import com.boostlite.reddit.data.model.MediaType
+import com.boostlite.reddit.data.model.RedditComment
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.CommentItem
@@ -149,7 +150,7 @@ fun PostScreen(
                                 post = post,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { onOpenMedia(post, post.media.isGif) },
+                                    .clickable { onOpenMedia(post, true) },
                                 onPlay = { onOpenMedia(post, true) },
                             )
                             if (post.media.type == MediaType.TEXT && !post.selftext.isNullOrBlank()) {
@@ -189,6 +190,9 @@ fun PostScreen(
                                 CommentItem(
                                     comment = comment,
                                     onAuthorClick = onAuthorClick,
+                                    onOpenMedia = {
+                                        onOpenMedia(commentAsPost(post, comment), true)
+                                    },
                                     onOpenSub = onOpenSub,
                                     onOpenUser = onOpenUser,
                                 )
@@ -201,3 +205,13 @@ fun PostScreen(
         }
     }
 }
+
+fun commentAsPost(post: RedditPost, comment: RedditComment): RedditPost =
+    post.copy(
+        id = comment.id,
+        title = comment.body.take(80).ifBlank { "Comment" },
+        author = comment.author,
+        media = comment.media ?: post.media,
+        selftext = comment.body,
+        numComments = 0,
+    )

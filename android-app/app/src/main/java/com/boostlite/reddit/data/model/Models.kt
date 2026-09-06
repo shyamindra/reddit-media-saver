@@ -49,6 +49,7 @@ data class RedditComment(
     val score: Int,
     val depth: Int,
     val createdUtc: Long,
+    val media: PostMedia? = null,
 )
 
 data class Listing<T>(
