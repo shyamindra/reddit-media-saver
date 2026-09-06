@@ -57,4 +57,15 @@ object RedditUrls {
         val q = URLEncoder.encode(query.trim(), "UTF-8")
         return "$BASE/search.json?q=$q&type=sr&include_over_18=on&limit=10&raw_json=1"
     }
+
+    fun postComments(permalink: String): String {
+        val raw = permalink.trim()
+        val path = if (raw.startsWith("http://") || raw.startsWith("https://")) {
+            raw
+        } else {
+            BASE + (if (raw.startsWith("/")) raw else "/$raw")
+        }.substringBefore('?')
+        val withSlash = if (path.endsWith("/")) path else "$path/"
+        return "${withSlash}.json?raw_json=1&include_over_18=on&limit=200&sort=confidence"
+    }
 }

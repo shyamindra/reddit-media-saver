@@ -88,4 +88,19 @@ class RedditUrlsTest {
         val neu = RedditUrls.feed("pics", sortPath = "new", time = "day")
         assertTrue(neu.contains("t=day"))
     }
+
+    @Test
+    fun postComments_includesNsfwAndRawJson() {
+        val url = RedditUrls.postComments("/r/pics/comments/abc/hi/")
+        assertTrue(url.startsWith("https://www.reddit.com/r/pics/comments/abc/hi/.json?"))
+        assertTrue(url.contains("raw_json=1"))
+        assertTrue(url.contains("include_over_18=on"))
+    }
+
+    @Test
+    fun postComments_acceptsAbsolutePermalink() {
+        val url = RedditUrls.postComments("https://www.reddit.com/r/pics/comments/abc/hi")
+        assertTrue(url.startsWith("https://www.reddit.com/r/pics/comments/abc/hi/.json?"))
+        assertTrue(url.contains("include_over_18=on"))
+    }
 }

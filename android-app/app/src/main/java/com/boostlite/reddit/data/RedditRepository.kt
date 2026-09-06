@@ -40,9 +40,7 @@ class RedditRepository(
     suspend fun postWithComments(
         permalink: String,
     ): RedditParser.PostWithComments = withContext(Dispatchers.IO) {
-        val path = if (permalink.startsWith("http")) permalink else RedditUrls.BASE + permalink
-        val sep = if (path.endsWith("/")) "" else "/"
-        val url = "$path$sep.json?raw_json=1&limit=200&sort=confidence"
+        val url = RedditUrls.postComments(permalink)
         RedditParser.parsePostWithComments(client.getJson(url))
     }
 

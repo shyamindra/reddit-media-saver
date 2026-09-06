@@ -15,8 +15,15 @@ class PrefsStarredSubsPersist(context: Context) : StarredSubsPersist {
         prefs.edit().putString(KEY, names.joinToString("\u001f")).apply()
     }
 
+    override fun loadLastTarget(): String? = prefs.getString(KEY_TARGET, null)
+
+    override fun saveLastTarget(encoded: String) {
+        prefs.edit().putString(KEY_TARGET, encoded).apply()
+    }
+
     companion object {
         private const val PREFS = "boostlite_bookmarks"
         private const val KEY = "sub_names"
+        private const val KEY_TARGET = "last_target"
     }
 }

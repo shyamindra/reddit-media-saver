@@ -17,8 +17,8 @@ class MediaViewerStore {
     private val _autoplay = MutableStateFlow(false)
     val autoplay: StateFlow<Boolean> = _autoplay.asStateFlow()
 
-    fun open(post: RedditPost, autoplay: Boolean = false) {
-        if (post.media.previewUrl.isNullOrBlank()) return
+    fun open(post: RedditPost, autoplay: Boolean = true) {
+        if (!post.media.hasViewerMedia) return
         _autoplay.value = autoplay
         _post.value = post
     }
