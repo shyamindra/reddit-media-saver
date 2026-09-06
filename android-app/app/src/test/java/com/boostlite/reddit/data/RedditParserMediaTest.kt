@@ -410,7 +410,7 @@ class RedditParserMediaTest {
     }
 
     @Test
-    fun redditVideoPreview_cmafFallback_isPreferredOverDashPlaylist() {
+    fun redditVideoPreview_playsDashPlaylist_keepsCmafDownload() {
         val media = post(
             """
             {
@@ -430,7 +430,7 @@ class RedditParserMediaTest {
         ).media
         assertEquals(MediaType.VIDEO, media.type)
         assertTrue(media.isGif)
-        assertEquals("https://v.redd.it/abc123/CMAF_1080.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/abc123/DASHPlaylist.mpd?a=1", media.videoUrl)
         assertEquals("https://v.redd.it/abc123/CMAF_1080.mp4?source=fallback", media.downloadUrl)
     }
 
@@ -494,7 +494,7 @@ class RedditParserMediaTest {
             }
             """.trimIndent(),
         ).media
-        assertEquals("https://v.redd.it/abc/CMAF_720.mp4?source=fallback", media.videoUrl)
+        assertEquals("https://v.redd.it/abc/DASHPlaylist.mpd?a=1", media.videoUrl)
         assertEquals("https://v.redd.it/abc/CMAF_720.mp4?source=fallback", media.downloadUrl)
         assertTrue(media.hasAudio)
         assertTrue(!media.isGif)

@@ -19,6 +19,8 @@ import org.json.JSONObject
 object RedditParser {
 
     private val IMAGE_EXT = listOf(".jpg", ".jpeg", ".png", ".webp")
+    private val IMG_MARKDOWN = Regex("""!\[img]\(([^)]+)\)""")
+    private val GIPHY_MARKDOWN = Regex("""!\[gif]\(giphy\|([A-Za-z0-9]+)(?:\|[^)]*)?\)""")
 
     private fun pathWithoutQuery(url: String): String =
         url.substringBefore('?').substringBefore('#')
@@ -145,12 +147,10 @@ object RedditParser {
             if (node.optString("kind") != "t1") continue // skip "more" stubs
             val data = node.optJSONObject("data") ?: continue
             val body = HtmlEntities.decode(data.optString("body")).trim()
-            val imgIds = Regex("""!\[img]\(([^)]+)\)""")
-                .findAll(body)
-                .map { it.groupValues[1] }
-                .toList()
-            val media = commentMedia(data, body, imgIds)
-            val stripped = stripRenderedCommentMedia(body, imgIds, media)
+            val imgIds = IMG_MARKDOWN.findAll(body).map { it.groupValues[1] }.toList()
+            val giphyIds = GIPHY_MARKDOWN.findAll(body).map { it.groupValues[1] }.toList()
+            val media = commentMedia(data, body, imgIds, giphyIds)
+            val stripped = stripRenderedCommentMedia(body, imgIds, giphyIds, media)
             if (stripped.isNotEmpty() || media != null) {
                 out.add(
                     RedditComment(
@@ -172,8 +172,14 @@ object RedditParser {
         }
     }
 
-    private fun stripRenderedCommentMedia(body: String, imgIds: List<String>, media: PostMedia?): String {
+    private fun stripRenderedCommentMedia(
+        body: String,
+        imgIds: List<String>,
+        giphyIds: List<String>,
+        media: PostMedia?,
+    ): String {
         var text = imgIds.fold(body) { acc, id -> acc.replace("![img]($id)", "") }
+        if (giphyIds.isNotEmpty()) text = GIPHY_MARKDOWN.replace(text, "")
         if (media != null) {
             val urls = Regex("""https://[^\s)]+""")
                 .findAll(text)
@@ -191,7 +197,12 @@ object RedditParser {
             .trim()
     }
 
-    private fun commentMedia(data: JSONObject, body: String, imgIds: List<String>): PostMedia? {
+    private fun commentMedia(
+        data: JSONObject,
+        body: String,
+        imgIds: List<String>,
+        giphyIds: List<String>,
+    ): PostMedia? {
         val metadata = data.optJSONObject("media_metadata")
         if (metadata != null) {
             val ids = if (imgIds.isNotEmpty()) {
@@ -221,6 +232,8 @@ object RedditParser {
             }
         }
 
+        giphyCommentMedia(giphyIds)?.let { return it }
+
         val urls = Regex("""https://[^\s)]+""")
             .findAll(body)
             .map { it.value.trimEnd('.', ',', ';', ':', '!', '?') }
@@ -229,6 +242,23 @@ object RedditParser {
         if (urls.size != 1) return null
         val direct = JSONObject().put("url", urls.single())
         if (!isGifPath(urls.single())) direct.put("post_hint", "image")
+        return resolveMediaDirect(direct).takeIf {
+            it.type == MediaType.IMAGE || it.type == MediaType.GIF || it.type == MediaType.VIDEO
+        }
+    }
+
+    private fun giphyCommentMedia(giphyIds: List<String>): PostMedia? {
+        if (giphyIds.isEmpty()) return null
+        if (giphyIds.size > 1) {
+            val urls = giphyIds.map { "https://i.giphy.com/$it.mp4" }
+            return PostMedia(
+                type = MediaType.GALLERY,
+                previewUrl = "https://i.giphy.com/${giphyIds.first()}.gif",
+                galleryUrls = urls,
+                downloadUrl = urls.first(),
+            )
+        }
+        val direct = JSONObject().put("url", "https://i.giphy.com/${giphyIds.single()}.gif")
         return resolveMediaDirect(direct).takeIf {
             it.type == MediaType.IMAGE || it.type == MediaType.GIF || it.type == MediaType.VIDEO
         }
@@ -260,6 +290,7 @@ object RedditParser {
         val host = hostOf(pathWithoutQuery(url)).lowercase()
         return host == "i.redd.it" ||
             host == "i.imgur.com" ||
+            host.endsWith("giphy.com") ||
             hasImageExt(url) ||
             isGifPath(url)
     }
@@ -404,7 +435,6 @@ object RedditParser {
         val cmaf = fallback != null && Regex("CMAF_\\d+", RegexOption.IGNORE_CASE).containsMatchIn(fallback)
         val download = if (cmaf) fallback else fallback?.let { rewriteDashHeight(it, height) }
         val stream = when {
-            cmaf -> fallback
             dash != null -> dash
             hls != null -> hls
             else -> fallback ?: download
@@ -550,7 +580,14 @@ object RedditParser {
         if (mp4 != null) return stripResizeParams(mp4)
         val gif = source.optStringOrNull("gif")
         if (gif != null) return bestRedditImageUrl(gif)
-        val u = source.optStringOrNull("u") ?: return null
+        val u = source.optStringOrNull("u")
+        if (mediaId.startsWith("giphy|")) {
+            val id = mediaId.substringAfter("giphy|").substringBefore('|')
+            if (u != null) return bestRedditImageUrl(u)
+            if (id.isNotBlank()) return "https://i.giphy.com/$id.gif"
+            return null
+        }
+        if (u == null) return null
         if (mediaId.isNotBlank()) {
             val mime = entry.optString("m")
             val ext = extFromMime(mime, u)

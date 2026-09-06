@@ -46,6 +46,43 @@ class RedditParserCommentMediaTest {
     }
 
     @Test
+    fun comment_giphyEmbed_playsMp4AndHidesToken() {
+        val json = """
+            [
+              {"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"p","name":"t3_p","title":"T","author":"a","subreddit":"soccer",
+                "permalink":"/r/soccer/comments/p/x/"
+              }}]}},
+              {"kind":"Listing","data":{"children":[{"kind":"t1","data":{
+                "id":"c1","author":"b","body":"Bro is enjoying their defeat from bench\n\n![gif](giphy|eQgyOmHByz68LEEHvk)","created_utc":1,"score":19
+              }}]}}
+            ]
+        """.trimIndent()
+        val c = RedditParser.parsePostWithComments(json).comments.single()
+        assertEquals("Bro is enjoying their defeat from bench", c.body.trim())
+        assertEquals(true, c.media!!.isGif)
+        assertEquals("https://i.giphy.com/eQgyOmHByz68LEEHvk.mp4", c.media!!.videoUrl)
+    }
+
+    @Test
+    fun comment_giphyEmbed_downsizedStillResolves() {
+        val json = """
+            [
+              {"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"p","name":"t3_p","title":"T","author":"a","subreddit":"soccer",
+                "permalink":"/r/soccer/comments/p/x/"
+              }}]}},
+              {"kind":"Listing","data":{"children":[{"kind":"t1","data":{
+                "id":"c1","author":"b","body":"![gif](giphy|YPsxi5NevgmzhqeUk7|downsized)","created_utc":1,"score":1
+              }}]}}
+            ]
+        """.trimIndent()
+        val c = RedditParser.parsePostWithComments(json).comments.single()
+        assertEquals("", c.body)
+        assertEquals("https://i.giphy.com/YPsxi5NevgmzhqeUk7.mp4", c.media!!.videoUrl)
+    }
+
+    @Test
     fun comment_captionPlusBareImage_keepsCaption() {
         val json = """
             [
