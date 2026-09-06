@@ -64,8 +64,7 @@ private fun resolveUrl(raw: String): String? {
     if (url.isEmpty()) return null
     return when {
         url.startsWith("https://") || url.startsWith("http://") -> url
-        url.startsWith("/r/") || url.startsWith("/u/") || url.startsWith("/user/") ->
-            "https://www.reddit.com$url"
+        url.startsWith("/") && !url.startsWith("//") -> "https://www.reddit.com$url"
         url.startsWith("www.") -> "https://$url"
         else -> null
     }

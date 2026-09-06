@@ -2,7 +2,6 @@ package com.boostlite.reddit.data
 
 import com.boostlite.reddit.data.model.MediaType
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class RedditParserCommentMediaTest {
@@ -25,6 +24,43 @@ class RedditParserCommentMediaTest {
         assertEquals("look", c.body.trim())
         assertEquals(MediaType.IMAGE, c.media!!.type)
         assertEquals("https://i.redd.it/abc123xyz.jpg", c.media!!.previewUrl)
+    }
+
+    @Test
+    fun comment_bareGifUrl_hidesLinkWhenMediaShown() {
+        val json = """
+            [
+              {"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"p","name":"t3_p","title":"T","author":"a","subreddit":"pics",
+                "permalink":"/r/pics/comments/p/x/"
+              }}]}},
+              {"kind":"Listing","data":{"children":[{"kind":"t1","data":{
+                "id":"c1","author":"b","body":"https://i.redd.it/cpant4frhpnh1.gif","created_utc":1,"score":18
+              }}]}}
+            ]
+        """.trimIndent()
+        val c = RedditParser.parsePostWithComments(json).comments.single()
+        assertEquals("", c.body)
+        assertEquals(MediaType.GIF, c.media!!.type)
+        assertEquals("https://i.redd.it/cpant4frhpnh1.gif", c.media!!.previewUrl)
+    }
+
+    @Test
+    fun comment_captionPlusBareImage_keepsCaption() {
+        val json = """
+            [
+              {"kind":"Listing","data":{"children":[{"kind":"t3","data":{
+                "id":"p","name":"t3_p","title":"T","author":"a","subreddit":"pics",
+                "permalink":"/r/pics/comments/p/x/"
+              }}]}},
+              {"kind":"Listing","data":{"children":[{"kind":"t1","data":{
+                "id":"c1","author":"b","body":"look https://i.redd.it/abc123xyz.jpg","created_utc":1,"score":2
+              }}]}}
+            ]
+        """.trimIndent()
+        val c = RedditParser.parsePostWithComments(json).comments.single()
+        assertEquals("look", c.body)
+        assertEquals(MediaType.IMAGE, c.media!!.type)
     }
 
     @Test

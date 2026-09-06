@@ -150,9 +150,7 @@ object RedditParser {
                 .map { it.groupValues[1] }
                 .toList()
             val media = commentMedia(data, body, imgIds)
-            val stripped = imgIds
-                .fold(body) { acc, id -> acc.replace("![img]($id)", "") }
-                .trim()
+            val stripped = stripRenderedCommentMedia(body, imgIds, media)
             if (stripped.isNotEmpty() || media != null) {
                 out.add(
                     RedditComment(
@@ -172,6 +170,25 @@ object RedditParser {
                 if (replyChildren != null) flattenComments(replyChildren, depth + 1, out)
             }
         }
+    }
+
+    private fun stripRenderedCommentMedia(body: String, imgIds: List<String>, media: PostMedia?): String {
+        var text = imgIds.fold(body) { acc, id -> acc.replace("![img]($id)", "") }
+        if (media != null) {
+            val urls = Regex("""https://[^\s)]+""")
+                .findAll(text)
+                .map { it.value.trimEnd('.', ',', ';', ':', '!', '?') }
+                .filter(::isCommentImageUrl)
+                .distinct()
+                .toList()
+            for (url in urls) {
+                text = Regex("""\[[^\]\n]*]\(${Regex.escape(url)}\)""").replace(text, "")
+                text = text.replace(url, "")
+            }
+        }
+        return text.replace(Regex("""[ \t]+\n"""), "\n")
+            .replace(Regex("""\n{3,}"""), "\n\n")
+            .trim()
     }
 
     private fun commentMedia(data: JSONObject, body: String, imgIds: List<String>): PostMedia? {

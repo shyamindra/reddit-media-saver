@@ -38,6 +38,25 @@ class TextLinksTest {
     }
 
     @Test
+    fun relativeMessageComposeLink_usesLabel() {
+        val linked = linkify(
+            "Please [contact the moderators of this subreddit](/message/compose/?to=/r/soccer)",
+        )
+        assertEquals("Please contact the moderators of this subreddit", linked.text)
+        assertEquals(
+            "https://www.reddit.com/message/compose/?to=/r/soccer",
+            linked.links.single().url,
+        )
+    }
+
+    @Test
+    fun protocolRelativeUrl_isNotLinked() {
+        val linked = linkify("[x](//evil.example/phish)")
+        assertEquals("[x](//evil.example/phish)", linked.text)
+        assertTrue(linked.links.isEmpty())
+    }
+
+    @Test
     fun noLinks_unchanged() {
         val linked = linkify("plain comment")
         assertEquals("plain comment", linked.text)
