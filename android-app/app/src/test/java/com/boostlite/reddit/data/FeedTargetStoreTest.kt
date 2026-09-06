@@ -106,6 +106,22 @@ class FeedTargetStoreTest {
     }
 
     @Test
+    fun openUser_stripsPrefixAndPushes() {
+        val ft = store("pics")
+        ft.openUser("u/spez")
+        assertEquals(FeedTarget.User("spez"), ft.target.value)
+        assertTrue(ft.goBack())
+        assertEquals(FeedTarget.Starred, ft.target.value)
+    }
+
+    @Test
+    fun openUser_deletedIsNoOp() {
+        val ft = store()
+        ft.openUser("[deleted]")
+        assertEquals(FeedTarget.All, ft.target.value)
+    }
+
+    @Test
     fun persist_roundTrip() {
         val persist = MemoryStarredSubsPersist()
         val first = FeedTargetStore(persist)

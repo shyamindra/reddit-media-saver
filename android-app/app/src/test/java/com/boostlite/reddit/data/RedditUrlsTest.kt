@@ -42,6 +42,17 @@ class RedditUrlsTest {
     }
 
     @Test
+    fun userSubmitted_pathAndNsfw() {
+        val url = RedditUrls.userSubmitted("spez", sortPath = "hot", time = "all")
+        assertTrue(url.startsWith("https://www.reddit.com/user/spez/submitted.json?"))
+        assertTrue(url.contains("sort=hot"))
+        assertTrue(url.contains("t=all"))
+        assertTrue(url.contains("include_over_18=on"))
+        assertTrue(url.contains("raw_json=1"))
+        assertFalse(url.contains("/r/"))
+    }
+
+    @Test
     fun searchPosts_top_includesTime() {
         val url = RedditUrls.searchPosts("cats", subreddit = null, sort = "top", time = "week")
         assertTrue(url.contains("sort=top"))

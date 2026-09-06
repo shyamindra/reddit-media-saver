@@ -62,6 +62,7 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
         is FeedTarget.Starred -> joined() ?: "all"
         is FeedTarget.All -> "all"
         is FeedTarget.Sub -> t.name
+        is FeedTarget.User -> t.name
     }
 
     fun isStarred(name: String): Boolean = isStarredIn(_starredNames.value, name)
@@ -108,6 +109,11 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
         pushAndSet(FeedTarget.Sub(name))
     }
 
+    fun openUser(raw: String) {
+        val name = normalizeUser(raw) ?: return
+        pushAndSet(FeedTarget.User(name))
+    }
+
     private fun initialTarget(): FeedTarget {
         val saved = decodeTarget(persist.loadLastTarget())
         return saved ?: defaultTarget()
@@ -150,6 +156,8 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
                 val name = encoded.removePrefix("sub:")
                 normalize(name)?.let { FeedTarget.Sub(it) }
             }
+            encoded.startsWith("user:") ->
+                normalizeUser(encoded.removePrefix("user:"))?.let { FeedTarget.User(it) }
             else -> null
         }
     }
@@ -158,6 +166,7 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
         is FeedTarget.Starred -> "starred"
         is FeedTarget.All -> "all"
         is FeedTarget.Sub -> "sub:${target.name}"
+        is FeedTarget.User -> "user:${target.name}"
     }
 
     private fun joined(): String? = joinedForFeed(_starredNames.value)
@@ -179,6 +188,19 @@ class FeedTargetStore(private val persist: StarredSubsPersist) {
             if (s.isEmpty()) return null
             if (isAllAlias(s) || s.equals("frontpage", ignoreCase = true)) return null
             return s
+        }
+
+        internal fun normalizeUser(raw: String): String? {
+            var s = raw.trim()
+            if (s.equals("[deleted]", ignoreCase = true)) return null
+            when {
+                s.startsWith("/user/", ignoreCase = true) -> s = s.substring(6)
+                s.startsWith("user/", ignoreCase = true) -> s = s.substring(5)
+                s.startsWith("/u/", ignoreCase = true) -> s = s.substring(3)
+                s.startsWith("u/", ignoreCase = true) -> s = s.substring(2)
+            }
+            s = s.trim().trimStart('/')
+            return s.takeIf { it.isNotEmpty() }
         }
 
         private fun isAllAlias(s: String): Boolean {

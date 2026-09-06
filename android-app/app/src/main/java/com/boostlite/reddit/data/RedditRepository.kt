@@ -27,6 +27,16 @@ class RedditRepository(
         RedditParser.parseListing(client.getJson(url))
     }
 
+    suspend fun userSubmitted(
+        name: String,
+        sort: FeedSort,
+        time: String = "all",
+        after: String? = null,
+    ): Listing<RedditPost> = withContext(Dispatchers.IO) {
+        val url = RedditUrls.userSubmitted(name, sort.path, time, after)
+        RedditParser.parseListing(client.getJson(url))
+    }
+
     suspend fun postWithComments(
         permalink: String,
     ): RedditParser.PostWithComments = withContext(Dispatchers.IO) {

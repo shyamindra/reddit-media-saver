@@ -95,4 +95,5 @@ sealed class FeedTarget {
     data object Starred : FeedTarget()
     data object All : FeedTarget()
     data class Sub(val name: String) : FeedTarget()
+    data class User(val name: String) : FeedTarget()
 }
