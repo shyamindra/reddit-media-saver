@@ -51,6 +51,7 @@ fun PostScreen(
     permalink: String,
     onBack: () -> Unit,
     onOpenMedia: (RedditPost, Boolean) -> Unit,
+    onAuthorClick: (String) -> Unit,
     viewModel: PostViewModel = viewModel(),
 ) {
     LaunchedEffect(permalink) { viewModel.load(permalink) }
@@ -110,11 +111,30 @@ fun PostScreen(
                     ) {
                         item {
                             Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                                Text(
-                                    text = "r/${post.subreddit}  •  u/${post.author}  •  ${relativeTime(post.createdUtc)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                Row {
+                                    Text(
+                                        text = "r/${post.subreddit}  •  ",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                    val authorClickable =
+                                        post.author.isNotBlank() && post.author != "[deleted]"
+                                    Text(
+                                        text = "u/${post.author}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = if (authorClickable) {
+                                            Modifier.clickable { onAuthorClick(post.author) }
+                                        } else {
+                                            Modifier
+                                        },
+                                    )
+                                    Text(
+                                        text = "  •  ${relativeTime(post.createdUtc)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                                 Spacer(Modifier.size(6.dp))
                                 Text(
                                     text = post.title,
@@ -162,7 +182,7 @@ fun PostScreen(
                             }
                         } else {
                             items(comments, key = { it.id }) { comment ->
-                                CommentItem(comment)
+                                CommentItem(comment, onAuthorClick = onAuthorClick)
                                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                             }
                         }

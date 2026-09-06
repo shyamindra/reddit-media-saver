@@ -68,6 +68,7 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     fun openStarred() = feedTarget.openStarred()
     fun openAll() = feedTarget.openAll()
     fun openSub(name: String) = feedTarget.openSub(name)
+    fun openUser(name: String) = feedTarget.openUser(name)
 
     fun canGoBack(): Boolean = feedTarget.canGoBack()
     fun goBack(): Boolean = feedTarget.goBack()
@@ -107,12 +108,20 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     private fun fetch(reset: Boolean) {
         viewModelScope.launch {
             try {
-                val listing = repo.feed(
-                    feedTarget.listingSubreddit(),
-                    _sort.value,
-                    time = _time.value.path,
-                    after = after,
-                )
+                val listing = when (val t = feedTarget.target.value) {
+                    is FeedTarget.User -> repo.userSubmitted(
+                        t.name,
+                        _sort.value,
+                        time = _time.value.path,
+                        after = after,
+                    )
+                    else -> repo.feed(
+                        feedTarget.listingSubreddit(),
+                        _sort.value,
+                        time = _time.value.path,
+                        after = after,
+                    )
+                }
                 if (reset) loaded.clear()
                 loaded.addAll(listing.items)
                 after = listing.after

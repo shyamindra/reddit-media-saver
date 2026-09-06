@@ -29,6 +29,7 @@ class SearchViewModel(app: Application) : AndroidViewModel(app) {
     val starredNames = feedTarget.starredNames
 
     fun openSub(name: String) = feedTarget.openSub(name)
+    fun openUser(name: String) = feedTarget.openUser(name)
 
     fun toggleStar(name: String): Boolean = feedTarget.toggleStar(name)
 

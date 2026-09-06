@@ -222,6 +222,10 @@ fun SearchScreen(
                                             viewModel.openSub(it)
                                             onBack()
                                         },
+                                        onAuthorClick = {
+                                            viewModel.openUser(it)
+                                            onBack()
+                                        },
                                     )
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                                 }

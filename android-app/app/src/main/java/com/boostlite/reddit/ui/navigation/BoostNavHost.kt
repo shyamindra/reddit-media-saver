@@ -60,6 +60,10 @@ fun BoostNavHost(navController: NavHostController = rememberNavController()) {
                     permalink = link,
                     onBack = { navController.popBackStack() },
                     onOpenMedia = mediaViewer::open,
+                    onAuthorClick = { name ->
+                        BoostLiteApp.instance.feedTarget.openUser(name)
+                        navController.popBackStack()
+                    },
                 )
             }
 

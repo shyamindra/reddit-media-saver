@@ -39,6 +39,7 @@ fun PostCard(
     onPlayMedia: () -> Unit = onOpenMedia,
     onDownload: () -> Unit,
     onSubredditClick: (String) -> Unit,
+    onAuthorClick: (String) -> Unit,
     autoPlay: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -59,10 +60,16 @@ fun PostCard(
                 modifier = Modifier.clickable { onSubredditClick(post.subreddit) },
             )
             Dot()
+            val authorClickable = post.author.isNotBlank() && post.author != "[deleted]"
             Text(
                 text = "u/${post.author}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = if (authorClickable) {
+                    Modifier.clickable { onAuthorClick(post.author) }
+                } else {
+                    Modifier
+                },
             )
             Dot()
             Text(

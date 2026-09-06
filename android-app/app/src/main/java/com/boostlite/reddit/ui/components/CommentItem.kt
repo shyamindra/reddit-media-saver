@@ -1,6 +1,7 @@
 package com.boostlite.reddit.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -31,9 +32,14 @@ private val DepthColors = listOf(
 )
 
 @Composable
-fun CommentItem(comment: RedditComment, modifier: Modifier = Modifier) {
+fun CommentItem(
+    comment: RedditComment,
+    onAuthorClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val indent = (comment.depth.coerceAtMost(8) * 10).dp
     val barColor = DepthColors[comment.depth % DepthColors.size]
+    val authorClickable = comment.author.isNotBlank() && comment.author != "[deleted]"
 
     Row(
         modifier = modifier
@@ -61,6 +67,11 @@ fun CommentItem(comment: RedditComment, modifier: Modifier = Modifier) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.SemiBold,
+                    modifier = if (authorClickable) {
+                        Modifier.clickable { onAuthorClick(comment.author) }
+                    } else {
+                        Modifier
+                    },
                 )
                 Text(
                     text = "  •  ${compactCount(comment.score)}  •  ${relativeTime(comment.createdUtc)}",

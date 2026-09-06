@@ -219,6 +219,7 @@ fun FeedScreen(
                                             }
                                         },
                                         onSubredditClick = { viewModel.openSub(it) },
+                                        onAuthorClick = { viewModel.openUser(it) },
                                     )
                                     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                                 }
