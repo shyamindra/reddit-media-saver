@@ -18,9 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
 
@@ -36,15 +34,16 @@ fun MediaContent(
         MediaType.VIDEO -> {
             val stream = media.videoUrl
             if (media.isGif && stream != null) {
-                VideoPlayer(
-                    url = stream,
-                    modifier = modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 180.dp, max = 480.dp),
-                    autoPlay = true,
-                    muted = true,
-                    showController = false,
-                )
+                    VideoPlayer(
+                        url = stream,
+                        modifier = modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 180.dp, max = 480.dp),
+                        autoPlay = true,
+                        muted = true,
+                        showController = false,
+                        posterUrl = media.previewUrl,
+                    )
             } else {
                 Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     media.previewUrl?.let { FullImage(it, post.title, Modifier.fillMaxWidth()) }
@@ -108,10 +107,10 @@ private fun FullImage(url: String, contentDescription: String, modifier: Modifie
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
-        AsyncImage(
-            model = url,
+        PostImage(
+            url = url,
             contentDescription = contentDescription,
-            contentScale = ContentScale.Fit,
+            original = true,
             modifier = Modifier.fillMaxWidth().heightIn(max = 520.dp),
         )
     }

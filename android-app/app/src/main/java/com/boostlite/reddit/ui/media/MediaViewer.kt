@@ -35,15 +35,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import coil.size.Size
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
+import com.boostlite.reddit.ui.components.PostImage
 import com.boostlite.reddit.ui.components.VideoPlayer
 
 @Composable
@@ -55,8 +51,8 @@ fun MediaViewer(
     onSave: () -> Unit,
 ) {
     var chrome by remember { mutableStateOf(true) }
-    var playVideo by remember(post.id, autoplay) {
-        mutableStateOf(autoplay || post.media.isGif)
+    var playVideo by remember(post.id) {
+        mutableStateOf(post.media.videoUrl != null)
     }
     BackHandler(onBack = onDismiss)
     LaunchedEffect(playVideo) {
@@ -106,8 +102,9 @@ private fun FullscreenBody(
                     url = stream,
                     modifier = Modifier.fillMaxSize(),
                     autoPlay = true,
-                    muted = post.media.isGif,
-                    showController = !post.media.isGif,
+                    muted = false,
+                    showController = media.hasAudio,
+                    posterUrl = media.previewUrl,
                 )
             } else {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -151,18 +148,10 @@ private fun FullscreenBody(
 
 @Composable
 private fun FitImage(url: String?, contentDescription: String) {
-    if (url.isNullOrBlank()) return
-    val context = LocalContext.current
-    val request = remember(url) {
-        ImageRequest.Builder(context)
-            .data(url)
-            .size(Size.ORIGINAL)
-            .build()
-    }
-    AsyncImage(
-        model = request,
+    PostImage(
+        url = url,
         contentDescription = contentDescription,
-        contentScale = ContentScale.Fit,
+        original = true,
         modifier = Modifier.fillMaxSize(),
     )
 }

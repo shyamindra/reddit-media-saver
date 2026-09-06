@@ -16,20 +16,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.ui.compactCount
@@ -94,8 +90,8 @@ fun PostCard(
         )
 
         val preview = post.media.previewUrl
-        val gifStream = post.media.videoUrl.takeIf { post.media.isGif }
-        if (preview != null || gifStream != null) {
+        val stream = post.media.videoUrl
+        if (preview != null || stream != null) {
             Spacer(Modifier.size(8.dp))
             Box(
                 modifier = Modifier
@@ -105,36 +101,32 @@ fun PostCard(
                     .clickable(onClick = onOpenMedia),
                 contentAlignment = Alignment.Center,
             ) {
-                if (gifStream != null && autoPlay) {
-                    VideoPlayer(
-                        url = gifStream,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 480.dp),
-                        autoPlay = true,
-                        muted = true,
-                        showController = false,
-                    )
-                } else {
-                    AsyncImage(
-                        model = preview,
+                if (preview != null) {
+                    PostImage(
+                        url = preview,
                         contentDescription = post.title,
-                        contentScale = ContentScale.Fit,
+                        original = false,
                         modifier = Modifier
                             .fillMaxWidth()
                             .wrapContentHeight()
                             .heightIn(max = 480.dp),
                     )
                 }
-                if (post.media.type == MediaType.VIDEO && !post.media.isGif) {
-                    IconButton(onClick = onPlayMedia) {
-                        Icon(
-                            imageVector = Icons.Filled.PlayCircle,
-                            contentDescription = "Play",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(48.dp),
-                        )
-                    }
+                if (stream != null && autoPlay) {
+                    VideoPlayer(
+                        url = stream,
+                        modifier = if (preview != null) {
+                            Modifier.matchParentSize()
+                        } else {
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 180.dp, max = 480.dp)
+                        },
+                        autoPlay = true,
+                        muted = true,
+                        showController = false,
+                        posterUrl = preview,
+                    )
                 }
                 if (post.media.type == MediaType.GALLERY) {
                     Box(
