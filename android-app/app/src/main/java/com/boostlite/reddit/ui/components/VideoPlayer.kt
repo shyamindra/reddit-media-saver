@@ -1,6 +1,7 @@
 package com.boostlite.reddit.ui.components
 
 import android.graphics.Color as AndroidColor
+import android.view.LayoutInflater
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -23,10 +24,14 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.boostlite.reddit.R
 
 /**
  * Minimal ExoPlayer surface. Handles progressive mp4 and DASH (v.redd.it
  * dash_url) automatically via the default media source factory.
+ *
+ * Feed lists must use a TextureView surface (see [R.layout.player_view_texture]):
+ * SurfaceView is a separate window and flickers while the LazyColumn scrolls.
  *
  * [posterUrl] stays visible until the first frame (or if playback fails) so a
  * missing DASH file does not sit on a black surface.
@@ -45,7 +50,7 @@ fun VideoPlayer(
     val lifecycleOwner = LocalLifecycleOwner.current
     var showPoster by remember(url, posterUrl) { mutableStateOf(!posterUrl.isNullOrBlank()) }
 
-    val player = remember(url, autoPlay) {
+    val player = remember(url) {
         val tracks = DefaultTrackSelector(context).apply {
             setParameters(
                 buildUponParameters()
@@ -64,6 +69,9 @@ fun VideoPlayer(
     }
     LaunchedEffect(player, muted) {
         player.volume = if (muted) 0f else 1f
+    }
+    LaunchedEffect(player, autoPlay) {
+        player.playWhenReady = autoPlay
     }
 
     DisposableEffect(player, posterUrl) {
@@ -103,15 +111,16 @@ fun VideoPlayer(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                PlayerView(ctx).apply {
+                (LayoutInflater.from(ctx).inflate(R.layout.player_view_texture, null, false) as PlayerView).apply {
                     useController = showController
                     isClickable = showController
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     setShutterBackgroundColor(AndroidColor.TRANSPARENT)
+                    setKeepContentOnPlayerReset(true)
                 }
             },
             update = { view ->
-                view.player = player
+                if (view.player !== player) view.player = player
                 view.useController = showController
             },
         )

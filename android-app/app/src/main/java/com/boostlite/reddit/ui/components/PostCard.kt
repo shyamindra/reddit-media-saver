@@ -125,7 +125,7 @@ fun PostCard(
                             .heightIn(max = 480.dp),
                     )
                 }
-                if (stream != null && autoPlay) {
+                if (shouldMountFeedVideoPlayer(hasStream = stream != null, centered = autoPlay) && stream != null) {
                     VideoPlayer(
                         url = stream,
                         modifier = if (preview != null) {
@@ -227,3 +227,11 @@ private fun Dot() {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
+
+/**
+ * Feed clips use TextureView to avoid SurfaceView flicker, but the ExoPlayer
+ * is only composed while the card is centered so scrolling does not keep a
+ * pile of paused decoders.
+ */
+internal fun shouldMountFeedVideoPlayer(hasStream: Boolean, centered: Boolean): Boolean =
+    hasStream && centered
