@@ -103,4 +103,15 @@ class RedditUrlsTest {
         assertTrue(url.startsWith("https://www.reddit.com/r/pics/comments/abc/hi/.json?"))
         assertTrue(url.contains("include_over_18=on"))
     }
+
+    @Test
+    fun userComments_pathAndNsfw() {
+        val url = RedditUrls.userComments("spez", sortPath = "hot", time = "all")
+        assertTrue(url.startsWith("https://www.reddit.com/user/spez/comments.json?"))
+        assertTrue(url.contains("sort=hot"))
+        assertTrue(url.contains("t=all"))
+        assertTrue(url.contains("include_over_18=on"))
+        assertTrue(url.contains("raw_json=1"))
+        assertTrue(url.contains("limit=50"))
+    }
 }

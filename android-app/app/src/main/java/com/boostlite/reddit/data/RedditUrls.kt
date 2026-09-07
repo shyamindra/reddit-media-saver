@@ -33,6 +33,22 @@ object RedditUrls {
         }
     }
 
+    fun userComments(
+        name: String,
+        sortPath: String,
+        time: String = "all",
+        after: String? = null,
+    ): String {
+        val user = URLEncoder.encode(name.trim(), "UTF-8")
+        return buildString {
+            append(BASE).append("/user/").append(user).append("/comments.json")
+            append("?limit=50&raw_json=1&include_over_18=on")
+            append("&sort=").append(sortPath)
+            append("&t=").append(time)
+            if (!after.isNullOrEmpty()) append("&after=").append(after)
+        }
+    }
+
     fun searchPosts(
         query: String,
         subreddit: String?,
