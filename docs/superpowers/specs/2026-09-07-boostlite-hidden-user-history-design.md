@@ -1,7 +1,7 @@
 # BoostLite: hidden user posts and comments
 
 **Date:** 2026-09-07  
-**Status:** draft for review  
+**Status:** approved; implementation plan at `docs/superpowers/plans/2026-09-07-boostlite-hidden-user-history.md`  
 **App:** `android-app/` (BoostLite)
 
 ## Goal
