@@ -8,8 +8,10 @@ import com.boostlite.reddit.data.RateLimitedException
 import com.boostlite.reddit.data.SessionExpiredException
 import com.boostlite.reddit.data.model.FeedSort
 import com.boostlite.reddit.data.model.FeedTarget
+import com.boostlite.reddit.data.model.ProfileComment
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.data.model.SearchTime
+import com.boostlite.reddit.data.model.UserHistoryTab
 import com.boostlite.reddit.ui.UiState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,6 +23,7 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
 
     private val boost = app as BoostLiteApp
     private val repo = boost.repository
+    private val userHistory = boost.userHistory
     private val feedTarget = boost.feedTarget
 
     val target: StateFlow<FeedTarget> = feedTarget.target
@@ -32,8 +35,17 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     private val _time = MutableStateFlow(SearchTime.ALL)
     val time: StateFlow<SearchTime> = _time.asStateFlow()
 
+    private val _historyTab = MutableStateFlow(UserHistoryTab.POSTS)
+    val historyTab: StateFlow<UserHistoryTab> = _historyTab.asStateFlow()
+
+    private val _fromArchive = MutableStateFlow(false)
+    val fromArchive: StateFlow<Boolean> = _fromArchive.asStateFlow()
+
     private val _state = MutableStateFlow<UiState<List<RedditPost>>>(UiState.Loading)
     val state: StateFlow<UiState<List<RedditPost>>> = _state.asStateFlow()
+
+    private val _commentState = MutableStateFlow<UiState<List<ProfileComment>>>(UiState.Loading)
+    val commentState: StateFlow<UiState<List<ProfileComment>>> = _commentState.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -42,7 +54,9 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
 
     private var after: String? = null
-    private val loaded = mutableListOf<RedditPost>()
+    private val loadedPosts = mutableListOf<RedditPost>()
+    private val loadedComments = mutableListOf<ProfileComment>()
+    private var lastUserName: String? = null
 
     init {
         viewModelScope.launch {
@@ -86,10 +100,23 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
         load()
     }
 
+    fun setHistoryTab(tab: UserHistoryTab) {
+        if (_historyTab.value == tab) return
+        _historyTab.value = tab
+        load()
+    }
+
     fun load() {
+        resetTabIfUserChanged()
         after = null
-        loaded.clear()
-        _state.value = UiState.Loading
+        loadedPosts.clear()
+        loadedComments.clear()
+        _fromArchive.value = false
+        if (showingComments()) {
+            _commentState.value = UiState.Loading
+        } else {
+            _state.value = UiState.Loading
+        }
         fetch(reset = true)
     }
 
@@ -105,43 +132,82 @@ class FeedViewModel(app: Application) : AndroidViewModel(app) {
         fetch(reset = false)
     }
 
+    private fun resetTabIfUserChanged() {
+        val name = (feedTarget.target.value as? FeedTarget.User)?.name
+        if (name != lastUserName) {
+            _historyTab.value = UserHistoryTab.POSTS
+            lastUserName = name
+        }
+    }
+
+    private fun showingComments(): Boolean =
+        feedTarget.target.value is FeedTarget.User && _historyTab.value == UserHistoryTab.COMMENTS
+
     private fun fetch(reset: Boolean) {
         viewModelScope.launch {
             try {
-                val listing = when (val t = feedTarget.target.value) {
-                    is FeedTarget.User -> repo.userSubmitted(
-                        t.name,
-                        _sort.value,
-                        time = _time.value.path,
-                        after = after,
-                    )
-                    else -> repo.feed(
-                        feedTarget.listingSubreddit(),
-                        _sort.value,
-                        time = _time.value.path,
-                        after = after,
-                    )
+                val t = feedTarget.target.value
+                when {
+                    t is FeedTarget.User && _historyTab.value == UserHistoryTab.COMMENTS -> {
+                        val page = userHistory.comments(
+                            t.name,
+                            _sort.value,
+                            time = _time.value.path,
+                            after = after,
+                        )
+                        if (reset) loadedComments.clear()
+                        loadedComments.addAll(page.items)
+                        after = page.after
+                        _fromArchive.value = page.fromArchive
+                        _commentState.value = UiState.Success(loadedComments.toList())
+                    }
+                    t is FeedTarget.User -> {
+                        val page = userHistory.posts(
+                            t.name,
+                            _sort.value,
+                            time = _time.value.path,
+                            after = after,
+                        )
+                        if (reset) loadedPosts.clear()
+                        loadedPosts.addAll(page.items)
+                        after = page.after
+                        _fromArchive.value = page.fromArchive
+                        _state.value = UiState.Success(loadedPosts.toList())
+                    }
+                    else -> {
+                        val listing = repo.feed(
+                            feedTarget.listingSubreddit(),
+                            _sort.value,
+                            time = _time.value.path,
+                            after = after,
+                        )
+                        if (reset) loadedPosts.clear()
+                        loadedPosts.addAll(listing.items)
+                        after = listing.after
+                        _fromArchive.value = false
+                        _state.value = UiState.Success(loadedPosts.toList())
+                    }
                 }
-                if (reset) loaded.clear()
-                loaded.addAll(listing.items)
-                after = listing.after
-                _state.value = UiState.Success(loaded.toList())
             } catch (e: SessionExpiredException) {
-                if (loaded.isEmpty()) {
-                    _state.value = UiState.Error(e.message ?: "Session expired", needsCookies = true)
-                }
+                setErrorIfEmpty(e.message ?: "Session expired", needsCookies = true)
             } catch (e: RateLimitedException) {
-                if (loaded.isEmpty()) {
-                    _state.value = UiState.Error(e.message ?: "Rate limited")
-                }
+                setErrorIfEmpty(e.message ?: "Rate limited")
             } catch (e: Exception) {
-                if (loaded.isEmpty()) {
-                    _state.value = UiState.Error(e.message ?: "Something went wrong")
-                }
+                setErrorIfEmpty(e.message ?: "Something went wrong")
             } finally {
                 _isRefreshing.value = false
                 _isLoadingMore.value = false
             }
+        }
+    }
+
+    private fun setErrorIfEmpty(message: String, needsCookies: Boolean = false) {
+        if (showingComments()) {
+            if (loadedComments.isEmpty()) {
+                _commentState.value = UiState.Error(message, needsCookies)
+            }
+        } else if (loadedPosts.isEmpty()) {
+            _state.value = UiState.Error(message, needsCookies)
         }
     }
 }

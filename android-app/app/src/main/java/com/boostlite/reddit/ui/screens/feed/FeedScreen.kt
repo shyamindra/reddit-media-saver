@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -59,11 +60,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
 import com.boostlite.reddit.data.model.FeedSort
 import com.boostlite.reddit.data.model.FeedTarget
+import com.boostlite.reddit.data.model.ProfileComment
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.data.model.SearchTime
+import com.boostlite.reddit.data.model.UserHistoryTab
 import com.boostlite.reddit.ui.UiState
 import com.boostlite.reddit.ui.components.ErrorState
 import com.boostlite.reddit.ui.components.PostCard
+import com.boostlite.reddit.ui.components.ProfileCommentRow
 import com.boostlite.reddit.ui.components.TimeMenu
 import com.boostlite.reddit.ui.list.centeredKey
 import kotlinx.coroutines.launch
@@ -78,17 +82,21 @@ fun FeedScreen(
     viewModel: FeedViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val commentState by viewModel.commentState.collectAsStateWithLifecycle()
     val target by viewModel.target.collectAsStateWithLifecycle()
     val starred by viewModel.starredNames.collectAsStateWithLifecycle()
     val sort by viewModel.sort.collectAsStateWithLifecycle()
     val time by viewModel.time.collectAsStateWithLifecycle()
+    val historyTab by viewModel.historyTab.collectAsStateWithLifecycle()
+    val fromArchive by viewModel.fromArchive.collectAsStateWithLifecycle()
     val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val isLoadingMore by viewModel.isLoadingMore.collectAsStateWithLifecycle()
     BackHandler(enabled = viewModel.canGoBack()) { viewModel.goBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(DrawerValue.Closed)
-    val listKey = "${target}|${sort.path}|${time.path}"
+    val showingComments = target is FeedTarget.User && historyTab == UserHistoryTab.COMMENTS
+    val listKey = "${target}|${sort.path}|${time.path}|${historyTab}"
     val listState = rememberSaveable(listKey, saver = LazyListState.Saver) { LazyListState() }
 
     val shouldLoadMore by remember(listState) {
@@ -181,54 +189,70 @@ fun FeedScreen(
                     onSort = viewModel::setSort,
                     onTime = viewModel::setTime,
                 )
+                if (target is FeedTarget.User) {
+                    UserHistoryTabRow(
+                        tab = historyTab,
+                        onTab = viewModel::setHistoryTab,
+                    )
+                }
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline)
 
-                when (val s = state) {
-                    is UiState.Loading -> CenterLoader()
-                    is UiState.Error -> ErrorState(
-                        message = s.message,
-                        needsCookies = s.needsCookies,
-                        onImportCookies = onOpenSettings,
+                if (showingComments) {
+                    FeedListing(
+                        state = commentState,
+                        listState = listState,
+                        isRefreshing = isRefreshing,
+                        isLoadingMore = isLoadingMore,
+                        fromArchive = fromArchive,
+                        emptyLabel = "No comments",
                         onRetry = viewModel::load,
-                    )
-                    is UiState.Success -> {
-                        val app = BoostLiteApp.instance
-                        val centeredId = listState.centeredKey()
-                        PullToRefreshBox(
-                            isRefreshing = isRefreshing,
-                            onRefresh = { viewModel.refresh() },
-                            modifier = Modifier.fillMaxSize(),
-                        ) {
-                            LazyColumn(
-                                state = listState,
-                                modifier = Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(bottom = 24.dp),
-                            ) {
-                                items(s.data, key = { it.id }) { post ->
-                                    PostCard(
-                                        post = post,
-                                        autoPlay = post.id == centeredId,
-                                        onClick = { onOpenPost(post.permalink) },
-                                        onOpenMedia = { onOpenMedia(post, true) },
-                                        onPlayMedia = { onOpenMedia(post, true) },
-                                        onDownload = {
-                                            post.media.downloadUrl?.let { url ->
-                                                app.downloader.enqueue(
-                                                    url = url,
-                                                    subreddit = post.subreddit,
-                                                    title = post.title,
-                                                )
-                                            }
-                                        },
-                                        onSubredditClick = { viewModel.openSub(it) },
-                                        onAuthorClick = { viewModel.openUser(it) },
-                                    )
-                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
-                                }
-                                if (isLoadingMore) {
-                                    item { CenterLoader(height = 64) }
-                                }
-                            }
+                        onRefresh = viewModel::refresh,
+                        onImportCookies = onOpenSettings,
+                    ) { comments ->
+                        items(comments, key = { it.id }) { comment ->
+                            ProfileCommentRow(
+                                comment = comment,
+                                onClick = { onOpenPost(comment.permalink) },
+                                onSubredditClick = { viewModel.openSub(it) },
+                                onAuthorClick = { viewModel.openUser(it) },
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                        }
+                    }
+                } else {
+                    val app = BoostLiteApp.instance
+                    val centeredId = listState.centeredKey()
+                    FeedListing(
+                        state = state,
+                        listState = listState,
+                        isRefreshing = isRefreshing,
+                        isLoadingMore = isLoadingMore,
+                        fromArchive = fromArchive,
+                        emptyLabel = if (target is FeedTarget.User) "No posts" else null,
+                        onRetry = viewModel::load,
+                        onRefresh = viewModel::refresh,
+                        onImportCookies = onOpenSettings,
+                    ) { posts ->
+                        items(posts, key = { it.id }) { post ->
+                            PostCard(
+                                post = post,
+                                autoPlay = post.id == centeredId,
+                                onClick = { onOpenPost(post.permalink) },
+                                onOpenMedia = { onOpenMedia(post, true) },
+                                onPlayMedia = { onOpenMedia(post, true) },
+                                onDownload = {
+                                    post.media.downloadUrl?.let { url ->
+                                        app.downloader.enqueue(
+                                            url = url,
+                                            subreddit = post.subreddit,
+                                            title = post.title,
+                                        )
+                                    }
+                                },
+                                onSubredditClick = { viewModel.openSub(it) },
+                                onAuthorClick = { viewModel.openUser(it) },
+                            )
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                         }
                     }
                 }
@@ -359,6 +383,119 @@ private fun SortAndTimeRow(
             }
         }
         TimeMenu(current = time, onSelect = onTime, modifier = Modifier.padding(start = 8.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun <T> FeedListing(
+    state: UiState<List<T>>,
+    listState: LazyListState,
+    isRefreshing: Boolean,
+    isLoadingMore: Boolean,
+    fromArchive: Boolean,
+    emptyLabel: String?,
+    onRetry: () -> Unit,
+    onRefresh: () -> Unit,
+    onImportCookies: () -> Unit,
+    itemsContent: LazyListScope.(List<T>) -> Unit,
+) {
+    when (state) {
+        is UiState.Loading -> CenterLoader()
+        is UiState.Error -> ErrorState(
+            message = state.message,
+            needsCookies = state.needsCookies,
+            onImportCookies = onImportCookies,
+            onRetry = onRetry,
+        )
+        is UiState.Success -> {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                if (state.data.isEmpty()) {
+                    EmptyUserHistory(fromArchive = fromArchive, emptyLabel = emptyLabel)
+                } else {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 24.dp),
+                    ) {
+                        if (fromArchive) {
+                            item { ArchiveCaption() }
+                        }
+                        itemsContent(state.data)
+                        if (isLoadingMore) {
+                            item { CenterLoader(height = 64) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UserHistoryTabRow(
+    tab: UserHistoryTab,
+    onTab: (UserHistoryTab) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(start = 8.dp, end = 8.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        FilterChip(
+            selected = tab == UserHistoryTab.POSTS,
+            onClick = { onTab(UserHistoryTab.POSTS) },
+            label = { Text("Posts") },
+        )
+        FilterChip(
+            selected = tab == UserHistoryTab.COMMENTS,
+            onClick = { onTab(UserHistoryTab.COMMENTS) },
+            label = { Text("Comments") },
+        )
+    }
+}
+
+@Composable
+private fun ArchiveCaption() {
+    Text(
+        text = "From archive (profile hidden)",
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun EmptyUserHistory(
+    fromArchive: Boolean,
+    emptyLabel: String?,
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        if (fromArchive) {
+            Text(
+                text = "From archive (profile hidden)",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (emptyLabel != null) {
+            Text(
+                text = emptyLabel,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = if (fromArchive) 8.dp else 0.dp),
+            )
+        }
     }
 }
 
