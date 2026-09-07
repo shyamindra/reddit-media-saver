@@ -2,6 +2,7 @@ package com.boostlite.reddit.data
 
 import com.boostlite.reddit.data.model.FeedSort
 import com.boostlite.reddit.data.model.Listing
+import com.boostlite.reddit.data.model.ProfileComment
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.data.model.Subreddit
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,16 @@ class RedditRepository(
     ): Listing<RedditPost> = withContext(Dispatchers.IO) {
         val url = RedditUrls.userSubmitted(name, sort.path, time, after)
         RedditParser.parseListing(client.getJson(url))
+    }
+
+    suspend fun userComments(
+        name: String,
+        sort: FeedSort,
+        time: String = "all",
+        after: String? = null,
+    ): Listing<ProfileComment> = withContext(Dispatchers.IO) {
+        val url = RedditUrls.userComments(name, sort.path, time, after)
+        RedditParser.parseCommentListing(client.getJson(url))
     }
 
     suspend fun postWithComments(

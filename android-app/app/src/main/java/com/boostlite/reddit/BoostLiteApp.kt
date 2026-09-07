@@ -6,11 +6,14 @@ import coil.ImageLoaderFactory
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.CachePolicy
+import com.boostlite.reddit.data.ArchiveClient
 import com.boostlite.reddit.data.CookieStore
 import com.boostlite.reddit.data.FeedTargetStore
+import com.boostlite.reddit.data.JsonGetter
 import com.boostlite.reddit.data.PrefsStarredSubsPersist
 import com.boostlite.reddit.data.RedditClient
 import com.boostlite.reddit.data.RedditRepository
+import com.boostlite.reddit.data.UserHistory
 import com.boostlite.reddit.download.MediaDownloader
 
 /**
@@ -27,6 +30,8 @@ class BoostLiteApp : Application(), ImageLoaderFactory {
         private set
     lateinit var repository: RedditRepository
         private set
+    lateinit var userHistory: UserHistory
+        private set
     lateinit var downloader: MediaDownloader
         private set
 
@@ -36,6 +41,16 @@ class BoostLiteApp : Application(), ImageLoaderFactory {
         feedTarget = FeedTargetStore(PrefsStarredSubsPersist(this))
         redditClient = RedditClient(cookieStore)
         repository = RedditRepository(redditClient)
+        val archiveClient = ArchiveClient()
+        userHistory = UserHistory(
+            livePosts = { name, sort, time, after ->
+                repository.userSubmitted(name, sort, time, after)
+            },
+            liveComments = { name, sort, time, after ->
+                repository.userComments(name, sort, time, after)
+            },
+            archiveGet = JsonGetter { archiveClient.getJson(it) },
+        )
         downloader = MediaDownloader(this, redditClient)
         instance = this
     }
