@@ -3,6 +3,7 @@ package com.boostlite.reddit.data
 import com.boostlite.reddit.data.model.Listing
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.PostMedia
+import com.boostlite.reddit.data.model.ProfileComment
 import com.boostlite.reddit.data.model.RedditComment
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.data.model.Subreddit
@@ -93,6 +94,32 @@ object RedditParser {
         }
         val after = root.optStringOrNull("after")
         return Listing(posts, after)
+    }
+
+    fun parseCommentListing(json: String): Listing<ProfileComment> {
+        val root = JSONObject(json).optJSONObject("data") ?: return Listing(emptyList(), null)
+        val after = root.optStringOrNull("after")
+        val children = root.optJSONArray("children") ?: return Listing(emptyList(), after)
+        val comments = (0 until children.length()).mapNotNull { i ->
+            val node = children.getJSONObject(i)
+            if (node.optString("kind") != "t1") return@mapNotNull null
+            val data = node.optJSONObject("data") ?: return@mapNotNull null
+            parseProfileComment(data)
+        }
+        return Listing(comments, after)
+    }
+
+    internal fun parseProfileComment(data: JSONObject): ProfileComment? {
+        val permalink = profileCommentPermalink(data) ?: return null
+        return ProfileComment(
+            id = data.optString("id"),
+            author = data.optString("author", "[deleted]"),
+            body = HtmlEntities.decode(data.optString("body")).trim(),
+            score = data.optInt("score"),
+            createdUtc = createdUtc(data),
+            subreddit = data.optString("subreddit"),
+            permalink = permalink,
+        )
     }
 
     fun parseSubredditListing(json: String): Listing<Subreddit> {
@@ -665,5 +692,23 @@ object RedditParser {
         if (!has(key) || isNull(key)) return null
         val v = optString(key)
         return v.ifBlank { null }
+    }
+
+    internal fun createdUtc(data: JSONObject): Long {
+        if (!data.has("created_utc") || data.isNull("created_utc")) return 0L
+        val asLong = data.optLong("created_utc")
+        if (asLong != 0L) return asLong
+        return data.optDouble("created_utc", 0.0).toLong()
+    }
+
+    internal fun profileCommentPermalink(data: JSONObject): String? {
+        val permalink = data.optString("permalink").trim()
+        if (permalink.isNotEmpty()) return permalink
+        val sub = data.optString("subreddit").trim()
+        val linkId = data.optString("link_id").trim()
+        if (sub.isEmpty() || !linkId.startsWith("t3_")) return null
+        val postId = linkId.removePrefix("t3_")
+        if (postId.isEmpty()) return null
+        return "/r/$sub/comments/$postId/"
     }
 }

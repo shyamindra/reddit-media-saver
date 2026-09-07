@@ -52,6 +52,24 @@ data class RedditComment(
     val media: PostMedia? = null,
 )
 
+data class ProfileComment(
+    val id: String,
+    val author: String,
+    val body: String,
+    val score: Int,
+    val createdUtc: Long,
+    val subreddit: String,
+    val permalink: String,
+)
+
+data class HistoryPage<T>(
+    val items: List<T>,
+    val after: String?,
+    val fromArchive: Boolean,
+)
+
+enum class UserHistoryTab { POSTS, COMMENTS }
+
 data class Listing<T>(
     val items: List<T>,
     val after: String?,
