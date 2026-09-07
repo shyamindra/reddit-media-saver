@@ -17,4 +17,9 @@ class PostCardTest {
         assertFalse(shouldMountFeedVideoPlayer(hasStream = false, centered = true))
         assertFalse(shouldMountFeedVideoPlayer(hasStream = false, centered = false))
     }
+
+    @Test
+    fun stillDoesNotForceCardWidth() {
+        assertFalse(feedStillForcesCardWidth())
+    }
 }

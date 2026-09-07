@@ -157,7 +157,7 @@ private fun FullscreenBody(
                 )
             }
         }
-        else -> FitImage(media.previewUrl, post.title)
+        else -> FitImage(fullscreenImageUrl(media.previewUrl, media.downloadUrl), post.title)
     }
 }
 

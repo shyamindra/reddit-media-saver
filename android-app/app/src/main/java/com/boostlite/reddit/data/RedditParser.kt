@@ -365,7 +365,11 @@ object RedditParser {
             (hint == "image" || hasImageExt(url))
         ) {
             val best = bestRedditImageUrl(url)
-            return PostMedia(MediaType.IMAGE, previewUrl = best, downloadUrl = best)
+            return PostMedia(
+                MediaType.IMAGE,
+                previewUrl = previewImage(data) ?: best,
+                downloadUrl = best,
+            )
         }
 
         // 4. GIFV / Imgur GIF — original mp4 is better than Reddit's transcode
@@ -614,16 +618,11 @@ object RedditParser {
         val images = data.optJSONObject("preview")?.optJSONArray("images") ?: return null
         if (images.length() == 0) return null
         val img = images.getJSONObject(0)
-        var bestUrl: String? = null
-        var bestArea = -1
+        val candidates = ArrayList<ListingStill>(8)
         fun consider(node: JSONObject?) {
             if (node == null) return
             val url = node.optStringOrNull("url") ?: return
-            val area = node.optInt("width") * node.optInt("height")
-            if (area >= bestArea) {
-                bestArea = area
-                bestUrl = url
-            }
+            candidates.add(ListingStill(node.optInt("width"), url))
         }
         consider(img.optJSONObject("source"))
         val resolutions = img.optJSONArray("resolutions")
@@ -632,7 +631,28 @@ object RedditParser {
                 consider(resolutions.optJSONObject(i))
             }
         }
-        return bestUrl?.let { bestRedditImageUrl(it) }
+        return pickListingStill(candidates)
+    }
+
+    internal data class ListingStill(val width: Int, val url: String)
+
+    /**
+     * Feed stills use the largest listing size that is still at most [targetWidth].
+     * Keep preview.redd.it (do not rewrite to the hosted original).
+     */
+    internal fun pickListingStill(
+        candidates: List<ListingStill>,
+        targetWidth: Int = 1080,
+    ): String? {
+        if (candidates.isEmpty()) return null
+        val decoded = candidates.map { ListingStill(it.width, decode(it.url)) }
+        val atMost = decoded.filter { it.width in 1..targetWidth }
+        val chosen = if (atMost.isNotEmpty()) {
+            atMost.maxBy { it.width }
+        } else {
+            decoded.minBy { it.width }
+        }
+        return chosen.url
     }
 
     /** Reddit HTML-escapes ampersands in preview/media URLs. */

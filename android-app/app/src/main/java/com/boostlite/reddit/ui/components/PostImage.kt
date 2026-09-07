@@ -8,10 +8,11 @@ import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import coil.size.Size
+import com.boostlite.reddit.ui.media.feedStillDecodeSize
 
 /**
  * Loads post stills. [original] keeps source resolution (post screen and
- * fullscreen). Cards pass false so Coil samples to the view.
+ * fullscreen). Cards pass false so Coil samples to at most 1080px.
  */
 @Composable
 fun PostImage(
@@ -23,10 +24,14 @@ fun PostImage(
 ) {
     if (url.isNullOrBlank()) return
     val context = LocalContext.current
-    val request = remember(url, original) {
+    val decodeSize = feedStillDecodeSize(context.resources.displayMetrics.widthPixels)
+    val request = remember(url, original, decodeSize) {
         ImageRequest.Builder(context)
             .data(url)
-            .apply { if (original) size(Size.ORIGINAL) }
+            .apply {
+                if (original) size(Size.ORIGINAL)
+                else size(decodeSize, decodeSize)
+            }
             .build()
     }
     AsyncImage(

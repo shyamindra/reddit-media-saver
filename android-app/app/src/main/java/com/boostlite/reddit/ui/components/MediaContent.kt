@@ -25,6 +25,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
+import com.boostlite.reddit.ui.media.feedStreamUrl
+import com.boostlite.reddit.ui.media.fullscreenImageUrl
 
 /** Media on the comments screen. Video stays a still until fullscreen. */
 @Composable
@@ -36,7 +38,7 @@ fun MediaContent(
     val media = post.media
     when (media.type) {
         MediaType.VIDEO -> {
-            val stream = media.videoUrl
+            val stream = feedStreamUrl(media.videoUrl, media.downloadUrl)
             if (media.isGif && stream != null) {
                 var muted by remember(post.id) { mutableStateOf(true) }
                 Box(modifier.fillMaxWidth()) {
@@ -49,6 +51,7 @@ fun MediaContent(
                         muted = muted,
                         showController = false,
                         posterUrl = media.previewUrl,
+                        previewQuality = true,
                     )
                     if (media.hasAudio) {
                         AudioToggleButton(
@@ -90,7 +93,9 @@ fun MediaContent(
         }
 
         MediaType.IMAGE, MediaType.GIF -> {
-            media.previewUrl?.let { FullImage(it, post.title, modifier) }
+            fullscreenImageUrl(media.previewUrl, media.downloadUrl)?.let {
+                FullImage(it, post.title, modifier)
+            }
         }
 
         MediaType.LINK -> {

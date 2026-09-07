@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.ui.compactCount
+import com.boostlite.reddit.ui.media.feedStreamUrl
 import com.boostlite.reddit.ui.relativeTime
 
 @Composable
@@ -101,7 +102,7 @@ fun PostCard(
         )
 
         val preview = post.media.previewUrl
-        val stream = post.media.videoUrl
+        val stream = feedStreamUrl(post.media.videoUrl, post.media.downloadUrl)
         val showAudio = post.media.hasAudio && stream != null
         var muted by remember(post.id) { mutableStateOf(true) }
         if (preview != null || stream != null) {
@@ -114,39 +115,46 @@ fun PostCard(
                     .clickable(onClick = onOpenMedia),
                 contentAlignment = Alignment.Center,
             ) {
-                if (preview != null) {
-                    PostImage(
-                        url = preview,
-                        contentDescription = post.title,
-                        original = false,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .wrapContentHeight()
-                            .heightIn(max = 480.dp),
-                    )
-                }
-                if (shouldMountFeedVideoPlayer(hasStream = stream != null, centered = autoPlay) && stream != null) {
-                    VideoPlayer(
-                        url = stream,
-                        modifier = if (preview != null) {
-                            Modifier.matchParentSize()
-                        } else {
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 180.dp, max = 480.dp)
-                        },
-                        autoPlay = true,
-                        muted = muted,
-                        showController = false,
-                        posterUrl = preview,
-                    )
-                }
-                if (showAudio && autoPlay) {
-                    AudioToggleButton(
-                        muted = muted,
-                        onClick = { muted = !muted },
-                        modifier = Modifier.align(Alignment.BottomEnd),
-                    )
+                Box {
+                    if (preview != null) {
+                        PostImage(
+                            url = preview,
+                            contentDescription = post.title,
+                            original = false,
+                            modifier = if (feedStillForcesCardWidth()) {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .wrapContentHeight()
+                                    .heightIn(max = 480.dp)
+                            } else {
+                                Modifier.heightIn(max = 480.dp)
+                            },
+                        )
+                    }
+                    if (shouldMountFeedVideoPlayer(hasStream = stream != null, centered = autoPlay) && stream != null) {
+                        VideoPlayer(
+                            url = stream,
+                            modifier = if (preview != null) {
+                                Modifier.matchParentSize()
+                            } else {
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 180.dp, max = 480.dp)
+                            },
+                            autoPlay = true,
+                            muted = muted,
+                            showController = false,
+                            posterUrl = preview,
+                            previewQuality = true,
+                        )
+                    }
+                    if (showAudio && autoPlay) {
+                        AudioToggleButton(
+                            muted = muted,
+                            onClick = { muted = !muted },
+                            modifier = Modifier.align(Alignment.BottomEnd),
+                        )
+                    }
                 }
                 if (post.media.type == MediaType.GALLERY) {
                     Box(
@@ -235,3 +243,10 @@ private fun Dot() {
  */
 internal fun shouldMountFeedVideoPlayer(hasStream: Boolean, centered: Boolean): Boolean =
     hasStream && centered
+
+/**
+ * Feed stills keep their intrinsic width (capped by the card). Forcing
+ * fillMaxWidth with ContentScale.Fit leaves empty TextureView bands beside a
+ * narrow GIF, and those bands flicker while the list scrolls.
+ */
+internal fun feedStillForcesCardWidth(): Boolean = false

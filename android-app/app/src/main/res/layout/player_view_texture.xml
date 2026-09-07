@@ -4,6 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     app:resize_mode="fit"
+    android:background="@android:color/transparent"
     app:shutter_background_color="@android:color/transparent"
     app:surface_type="texture_view"
     app:use_controller="false" />

@@ -2,6 +2,9 @@ package com.boostlite.reddit.ui.components
 
 import android.graphics.Color as AndroidColor
 import android.view.LayoutInflater
+import android.view.TextureView
+import android.view.View
+import android.view.ViewGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -25,6 +28,7 @@ import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.boostlite.reddit.R
+import com.boostlite.reddit.ui.media.FEED_MAX_VIDEO_HEIGHT
 
 /**
  * Minimal ExoPlayer surface. Handles progressive mp4 and DASH (v.redd.it
@@ -32,6 +36,9 @@ import com.boostlite.reddit.R
  *
  * Feed lists must use a TextureView surface (see [R.layout.player_view_texture]):
  * SurfaceView is a separate window and flickers while the LazyColumn scrolls.
+ *
+ * [previewQuality] caps the selected video height at 720p so the feed does not
+ * fetch fullscreen renditions. Fullscreen leaves this false.
  *
  * [posterUrl] stays visible until the first frame (or if playback fails) so a
  * missing DASH file does not sit on a black surface.
@@ -45,18 +52,25 @@ fun VideoPlayer(
     muted: Boolean = false,
     showController: Boolean = true,
     posterUrl: String? = null,
+    previewQuality: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var showPoster by remember(url, posterUrl) { mutableStateOf(!posterUrl.isNullOrBlank()) }
 
-    val player = remember(url) {
+    val player = remember(url, previewQuality) {
         val tracks = DefaultTrackSelector(context).apply {
             setParameters(
-                buildUponParameters()
-                    .setForceHighestSupportedBitrate(true)
-                    .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
-                    .setViewportSize(Int.MAX_VALUE, Int.MAX_VALUE, true),
+                if (previewQuality) {
+                    buildUponParameters()
+                        .setForceHighestSupportedBitrate(false)
+                        .setMaxVideoSize(Int.MAX_VALUE, FEED_MAX_VIDEO_HEIGHT)
+                } else {
+                    buildUponParameters()
+                        .setForceHighestSupportedBitrate(true)
+                        .setMaxVideoSize(Int.MAX_VALUE, Int.MAX_VALUE)
+                        .setViewportSize(Int.MAX_VALUE, Int.MAX_VALUE, true)
+                },
             )
         }
         ExoPlayer.Builder(context).setTrackSelector(tracks).build().apply {
@@ -115,13 +129,13 @@ fun VideoPlayer(
                     useController = showController
                     isClickable = showController
                     resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
-                    setShutterBackgroundColor(AndroidColor.TRANSPARENT)
-                    setKeepContentOnPlayerReset(true)
+                    blendWithCompose()
                 }
             },
             update = { view ->
                 if (view.player !== player) view.player = player
                 view.useController = showController
+                view.blendWithCompose()
             },
         )
         if (showPoster && !posterUrl.isNullOrBlank()) {
@@ -133,4 +147,22 @@ fun VideoPlayer(
             )
         }
     }
+}
+
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
+private fun PlayerView.blendWithCompose() {
+    setBackgroundColor(AndroidColor.TRANSPARENT)
+    setShutterBackgroundColor(AndroidColor.TRANSPARENT)
+    setKeepContentOnPlayerReset(true)
+    findTextureView()?.isOpaque = false
+}
+
+private fun View.findTextureView(): TextureView? {
+    if (this is TextureView) return this
+    if (this is ViewGroup) {
+        for (i in 0 until childCount) {
+            getChildAt(i).findTextureView()?.let { return it }
+        }
+    }
+    return null
 }

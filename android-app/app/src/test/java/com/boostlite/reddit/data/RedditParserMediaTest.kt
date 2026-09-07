@@ -126,7 +126,7 @@ class RedditParserMediaTest {
         ).media
         assertEquals(MediaType.VIDEO, media.type)
         assertEquals("https://v.redd.it/vid/DASHPlaylist.mpd?a=1", media.videoUrl)
-        assertEquals("https://i.redd.it/poster.jpg", media.previewUrl)
+        assertEquals("https://preview.redd.it/poster.jpg?width=108", media.previewUrl)
         assertEquals("https://v.redd.it/vid/DASH_1080.mp4?source=fallback", media.downloadUrl)
     }
 
@@ -185,7 +185,7 @@ class RedditParserMediaTest {
     }
 
     @Test
-    fun preview_picksSourceOverTinyResolutions() {
+    fun preview_picksLargestListingStillAtMost1080() {
         val media = post(
             """
             {
@@ -201,7 +201,29 @@ class RedditParserMediaTest {
             }
             """.trimIndent(),
         ).media
-        assertEquals("https://i.redd.it/big.jpg", media.previewUrl)
+        assertEquals("https://preview.redd.it/big.jpg?width=960&s=1", media.previewUrl)
+    }
+
+    @Test
+    fun image_feedStillUsesListingPreviewAndOriginalDownload() {
+        val media = post(
+            """
+            {
+              "id":"im2","name":"t3_im2","title":"I","author":"a","subreddit":"pics",
+              "permalink":"/r/pics/comments/im2/x/","post_hint":"image",
+              "url":"https://i.redd.it/photo1.jpg",
+              "preview":{"images":[{
+                "source":{"url":"https://preview.redd.it/photo1.jpg?width=4096&amp;s=1","width":4096,"height":2730},
+                "resolutions":[
+                  {"url":"https://preview.redd.it/photo1.jpg?width=320&amp;s=1","width":320,"height":213},
+                  {"url":"https://preview.redd.it/photo1.jpg?width=1080&amp;s=1","width":1080,"height":720}
+                ]
+              }]}
+            }
+            """.trimIndent(),
+        ).media
+        assertEquals("https://preview.redd.it/photo1.jpg?width=1080&s=1", media.previewUrl)
+        assertEquals("https://i.redd.it/photo1.jpg", media.downloadUrl)
     }
 
     @Test
