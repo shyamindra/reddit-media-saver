@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.boostlite.reddit.BoostLiteApp
-import com.boostlite.reddit.data.model.MediaType
 import com.boostlite.reddit.data.model.RedditComment
 import com.boostlite.reddit.data.model.RedditPost
 import com.boostlite.reddit.ui.UiState
@@ -153,9 +152,10 @@ fun PostScreen(
                                     .clickable { onOpenMedia(post, true) },
                                 onPlay = { onOpenMedia(post, true) },
                             )
-                            if (post.media.type == MediaType.TEXT && !post.selftext.isNullOrBlank()) {
+                            val body = post.selftext
+                            if (shouldRenderSelftext(body) && body != null) {
                                 LinkedBody(
-                                    text = post.selftext,
+                                    text = body,
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurface,
                                     modifier = Modifier.padding(12.dp),
@@ -215,3 +215,6 @@ fun commentAsPost(post: RedditPost, comment: RedditComment): RedditPost =
         selftext = comment.body,
         numComments = 0,
     )
+
+internal fun shouldRenderSelftext(selftext: String?): Boolean =
+    !selftext.isNullOrBlank()
