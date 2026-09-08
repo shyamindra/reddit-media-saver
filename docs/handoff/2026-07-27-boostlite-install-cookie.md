@@ -1,6 +1,8 @@
 # Handoff: BoostLite install + cookie extraction
 
 **Date:** 2026-07-27  
+**Updated:** 2026-09-08 — CLI build/install is `make android-build` / `make android-install`. The Gradle wrapper jar is committed. See [`android-app/README.md`](../../android-app/README.md).
+
 **Repo:** `/Users/sid/projects/reddit-media-saver`  
 **Next focus:** Get the Android prototype installed on a device/emulator and prove cookie export → import → authenticated browse.
 
@@ -22,7 +24,7 @@ Do **not** rebuild the app architecture unless install/cookie flow is blocked.
 |---|---|
 | Android app (Kotlin + Jetpack Compose, not RN) | `android-app/` |
 | Install + cookie docs | `android-app/README.md` |
-| Cookie export Make targets | `Makefile` (`android-cookie`, `android-cookie-push`) |
+| Cookie export Make targets | `Makefile` (`android-cookie`, `android-cookie-push`, `android-build`, `android-install`) |
 | Export CLI | `src/scripts/exportAndroidCookie.ts` |
 | Export logic + filter | `src/services/exportAndroidCookies.ts` |
 | Unit tests (passing) | `src/services/exportAndroidCookies.test.ts` |
@@ -38,14 +40,9 @@ Do **not** rebuild the app architecture unless install/cookie flow is blocked.
 
 ---
 
-## Environment blockers (this machine, last checked)
+## Environment (historical, 2026-07-27)
 
-- **No JDK** usable from CLI (`java` stub: “Unable to locate a Java Runtime”).
-- **No Android SDK** at `~/Library/Android/sdk`; `ANDROID_HOME` unset.
-- **`adb` present** at `/opt/homebrew/bin/adb`.
-- **`android-app/gradle/wrapper/`** has only `gradle-wrapper.properties` — **no `gradle-wrapper.jar`**. First open in Android Studio (or `gradle wrapper --gradle-version 8.9` with a real Gradle+JDK) is required.
-
-Prefer **Android Studio** for first build (bundles JDK/SDK/wrapper generation).
+At the time of this handoff the machine had no CLI JDK, no `ANDROID_HOME`, and no wrapper jar. **As of 2026-09** the wrapper jar is committed and CLI builds use `JAVA_HOME=/opt/homebrew/opt/openjdk@17` with `make android-build` / `make android-install`. `adb` remains at `/opt/homebrew/bin/adb`.
 
 ---
 
@@ -79,13 +76,14 @@ In BoostLite: **Settings (gear) → Import file** → pick `boostlite-reddit-coo
 
 ## App installation (do this)
 
-1. Install/open **Android Studio** (stable).
-2. **Open** folder `android-app/` (not repo root).
-3. Let Gradle sync; generate wrapper if prompted (`gradle-8.9` per `gradle/wrapper/gradle-wrapper.properties`).
-4. Run `app` on emulator or device (minSdk 26).
-5. Import cookies (above) → open feed (`r/all` or a known sub) → open a post → try search → Save once.
+From the repo root (JDK 17 + `adb`):
 
-If compile errors appear, fix the minimum needed to assemble/install — the scaffold was written without a local compile in the prior session.
+```bash
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-install
+# or a specific device: ADB="adb -s SERIAL"
+```
+
+Or open **Android Studio** on folder `android-app/` (not repo root) and run `app` (minSdk 26). Then import cookies (above) → open feed → open a post → try search → Save once.
 
 ---
 
@@ -93,7 +91,8 @@ If compile errors appear, fix the minimum needed to assemble/install — the sca
 
 - [ ] `make android-cookie` writes a non-empty Netscape file with reddit.com rows
 - [ ] (optional) `adb devices` shows device; `make android-cookie-push` succeeds
-- [ ] App installs and launches
+- [ ] `JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-build` produces `android-app/app/build/outputs/apk/debug/app-debug.apk`
+- [ ] `adb devices` shows device; `make android-install` succeeds
 - [ ] Settings shows “Session active” after import
 - [ ] Feed loads without 403
 - [ ] Post + comments load

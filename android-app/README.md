@@ -27,24 +27,32 @@ them from a browser where you're already logged in.
 
 ## Requirements
 
-- **Android Studio** (latest stable) — bundles the JDK, Gradle, and Android SDK.
-- A physical device or emulator on **Android 8.0 (API 26)** or newer.
+- **JDK 17** for CLI builds (`brew install openjdk@17`). Android Studio also works and bundles a JDK.
+- A physical device or emulator on **Android 8.0 (API 26)** or newer. `adb` for install (`brew install android-platform-tools`).
 
-This sub-project has **no Gradle wrapper jar committed** (binaries can't be
-generated here). See "First build" below — Android Studio creates it on sync.
+The Gradle wrapper (`android-app/gradle/wrapper/`) is committed. CLI builds use `./gradlew` from `android-app/`.
 
-## First build
+## Build and install
 
-1. In Android Studio: **Open** → select the `android-app/` folder (not the repo root).
-2. Let it sync. If it complains about a missing Gradle wrapper, either:
-   - accept its offer to generate the wrapper, **or**
-   - from a terminal with Gradle installed (`brew install gradle`), run inside
-     `android-app/`:
-     ```bash
-     gradle wrapper --gradle-version 8.9
-     ./gradlew assembleDebug
-     ```
-3. Run the `app` configuration on your device/emulator.
+From the **repo root**:
+
+```bash
+# Debug APK only (no device required)
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-build
+
+# Build and install on the connected device/emulator
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-install
+
+# Specific device when several are attached
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-install ADB="adb -s SERIAL"
+```
+
+Then BoostLite → **Settings (gear)** → **Import file** (cookies below).
+
+### Android Studio
+
+1. **Open** → select the `android-app/` folder (not the repo root).
+2. Sync Gradle, then run the `app` configuration on your device/emulator.
 
 ## Getting your cookies (easiest)
 

@@ -2,6 +2,15 @@
 
 A desktop application built with Electron, React, and TypeScript that allows users to download and organize their saved Reddit content locally.
 
+**BoostLite** (Android reader) lives in [`android-app/`](android-app/README.md). From the repo root:
+
+```bash
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-build     # debug APK
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 make android-install # build + adb install
+```
+
+Use `ADB="adb -s SERIAL"` when more than one device is connected (`adb devices -l`). Cookies: `make android-cookie` / `make android-cookie-push`.
+
 ## Features
 
 - **OAuth2 Authentication**: Secure login with Reddit API
