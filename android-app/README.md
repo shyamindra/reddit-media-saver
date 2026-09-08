@@ -17,10 +17,13 @@ them from a browser where you're already logged in.
 
 ## Features (v0)
 
-- Subreddit feeds (`hot` / `new` / `top` / `rising`) with infinite scroll
-- Post detail with flattened, indented comment threads
-- Search — global and restricted to a subreddit
-- Media: images, GIFs, galleries (swipe), Reddit video (ExoPlayer)
+- Starred subs, r/all, one subreddit, or `u/name` (last target restored)
+- Feeds (`hot` / `new` / `top` / `rising`) with infinite scroll and pull-to-refresh
+- Post detail: title, media, **selftext under media**, flattened comment threads
+- Comment images, GIFs, and Giphy embeds next to remaining caption text
+- User Posts / Comments chips; hidden profiles fall back to Arctic Shift (no Reddit cookies on archive)
+- Search — current sub or all of Reddit; time filters
+- Media: images, GIFs, galleries, Reddit/RedGIFs/CMAF video (muted autoplay in feed, sound fullscreen)
 - One-tap **Save** to `Downloads/BoostLite` (system DownloadManager)
 - Cookie import via pasted string or `cookies.txt` file; session status screen
 - NSFW never filtered (`include_over_18=on`, `over_18` ignored)
@@ -92,9 +95,12 @@ When the feed shows **"session expired"**, re-run `make android-cookie` (or
 data/
   CookieParser      parse Netscape cookies.txt OR "k=v; k2=v2" → Cookie header
   CookieStore       persist header (SharedPreferences) + observable state
+  FeedTargetStore   Starred / all / sub / user + last target
   RedditClient      OkHttp; injects Cookie + desktop UA; maps 401/403/429
+  ArchiveClient     unauthenticated GET for Arctic Shift (no cookies)
+  UserHistory       live user listing, then archive if empty
   RedditParser      org.json → domain models + media resolution
-  RedditRepository  builds .json endpoints (feed/post/search), off-main-thread
+  RedditRepository  builds Reddit .json endpoints, off-main-thread
 download/
   MediaDownloader   system DownloadManager → Downloads/BoostLite
 ui/
@@ -102,13 +108,17 @@ ui/
 BoostLiteApp        service locator + Coil ImageLoader (cookies for previews)
 ```
 
+Build from the **repo root** with `make android-build` / `make android-install` (see above). Do not send Reddit cookies to Arctic Shift.
+
 ## Known limitations (prototype)
 
-- **v.redd.it audio**: video track downloads without the separate audio track
-  (muxing needs ffmpeg — follow-up). Playback in-app uses the DASH stream (has audio).
+- **v.redd.it Save**: the downloaded file may omit the separate audio track
+  (muxing needs ffmpeg — follow-up). In-app playback uses DASH/CMAF (has audio).
 - Comments are flattened with an indent bar; no collapse/load-more ("more" stubs
   are skipped).
+- Feed cards show title + media only; full `selftext` is on the post screen.
+- Hidden-profile archive is newest-first; sort/time apply to live Reddit only.
+  Archive comment rows have no inline media in v1.
 - No voting, inbox, or account actions (out of scope by design).
 - Cookies stored in plain SharedPreferences — swap to EncryptedSharedPreferences
   before any real use.
-- Rich video hosts (redgifs/imgur) resolve to a link + preview, not inline play.

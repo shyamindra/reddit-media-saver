@@ -21,7 +21,10 @@ The core module that executes downloads for a `Link batch`. Accepts a strategy a
 An adapter behind the download runner seam that implements a specific download mechanism (yt-dlp with Firefox cookies, yt-dlp from pre-extracted URL list, axios from Reddit JSON).
 
 ## Subreddit listing
-A paginated set of post URLs from a subreddit feed (top, hot, new). Produced by the listing module and written as a CSV `Link batch`.
+A paginated set of post URLs from a subreddit feed (top, hot, new). Always requests NSFW (`include_over_18`) and `raw_json`. Page size is an adapter choice (CLI 100, BoostLite 50). Download listings omit stickied posts; browse listings keep them.
+
+## Search listing
+A paginated set of post URLs from a Reddit search query (optionally scoped to one subreddit). Same NSFW and `raw_json` contract as a subreddit listing. Produced by the search workflow and written as a CSV `Link batch` under `reddit-links/search-scraped/`.
 
 ## Batch queue
 Orchestration that runs multiple subreddit listing + download jobs with concurrency limits, cooldowns, and resume support.
@@ -33,7 +36,7 @@ The on-disk folder structure under `downloads/` (Images, Videos, Gifs, Media, No
 Maintenance operations on already-downloaded files: organize by similarity, fix corrupted HTML-as-media, recover embedded video URLs from Notes. Module: `src/repair/`.
 
 ## Browser session
-Firefox (or other browser) cookies exported at runtime via yt-dlp for authenticated Reddit JSON access — no OAuth. Used by Reddit fetch and link resolution when `useCookies` is set. Session cookie file path comes from app config (`sessionCookieFile`); never committed to git.
+Firefox (or other browser) cookies exported at runtime via yt-dlp for authenticated Reddit JSON access — no OAuth. Desktop JSON fetch and BoostLite import share the same Netscape parse (HttpOnly rows included). Session cookie file path comes from app config (`sessionCookieFile`); never committed to git.
 
 ## App config
 Single source of truth for paths, auth redirect URIs, batch delays, and user-agent strings.
@@ -58,3 +61,25 @@ Adapter that records which post IDs have finished downloading. First adapter par
 
 ## Dead subreddit registry
 File-backed list of subreddits to skip at compile time and download time. Replaces hardcoded in-source sets; refreshed via `batch analyze-dead` (planned).
+
+## BoostLite
+
+**Feed target**:
+Where the BoostLite feed is pointed: the combined Starred listing, r/all, one subreddit, or a user (`u/name`).
+_Avoid_: FeedSession, current subreddit string, home tab
+
+**Starred subs**:
+A locally persisted set of subreddit names that make up the Starred feed target. Not Reddit account subscriptions.
+_Avoid_: bookmarks (ambiguous with post Save), subscriptions, multis
+
+**Authenticated HTTP**:
+Cookie + desktop User-Agent attached to Reddit JSON, preview images, and Save downloads. Screens pass a media URL, not a Cookie header.
+_Avoid_: currentHeader() in UI
+
+**User history**:
+Posts and comments for `FeedTarget.User`. Live Reddit `.json` first; if that listing is empty, Arctic Shift fills the same screen (Posts / Comments chips). Archive pages are newest-first.
+_Avoid_: Reveddit, PullPush, wrapping a browser extension
+
+**Archive HTTP**:
+Unauthenticated OkHttp client for Arctic Shift. Never receives Reddit cookies or the cookie-jar User-Agent client.
+_Avoid_: reusing `RedditClient.http` for third-party hosts

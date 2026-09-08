@@ -1,7 +1,7 @@
 # BoostLite: nav, media playback, users, and text
 
 **Date:** 2026-09-06  
-**Status:** approved; implementation plan at `docs/superpowers/plans/2026-09-06-boostlite-nav-media-text.md`  
+**Status:** shipped on `main` (2026-09); plan at `docs/superpowers/plans/2026-09-06-boostlite-nav-media-text.md`  
 **App:** `android-app/` (BoostLite)
 
 ## Goal
